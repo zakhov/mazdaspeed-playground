@@ -1,0 +1,12 @@
+{
+  "name": "mazdaspeed-playground",
+  "version": "0.0.1",
+  "author": "Zaki Hanafiah",
+  "license": "MIT",
+  "devDependencies": {
+    "panda-toolkit": "^2.1.3"
+  },
+  "scripts": {
+    "build": "panda build"
+  }
+}

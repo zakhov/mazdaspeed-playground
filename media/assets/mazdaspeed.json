@@ -1,0 +1,33 @@
+{
+    "frames": { 
+        "Mazda3MPS__mainframe.png": {
+            "x": 2,
+            "y": 2,
+            "w": 1438,
+            "h": 475
+        }, 
+        "Mazda3MPS__mask.png": {
+            "x": 2,
+            "y": 479,
+            "w": 1438,
+            "h": 475
+        }, 
+        "Mazda3MPS_tyre--front.png": {
+            "x": 1442,
+            "y": 2,
+            "w": 218,
+            "h": 209
+        }, 
+        "Mazda3MPS_tyre--rear.png": {
+            "x": 1442,
+            "y": 213,
+            "w": 218,
+            "h": 209
+        }
+    },
+    "meta": {
+        "app": "http://www.codeandweb.com/texturepacker",
+        "image": "mazdaspeed.png",
+        "smartupdate": "$TexturePacker:SmartUpdate:c0e8ea0f9f1e83feecbcb53eab9c6dc9:14a215826033518cb43cb29c04ac73c8:197fa01936a998ae8141f93c1f47c0c3$"
+    }
+}
