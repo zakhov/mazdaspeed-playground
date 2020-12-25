@@ -3,8 +3,8 @@ game.module('game.main')
     .body(function () {
         game.createScene('Main', {
             init: function () {
-                this.moving_speed = 60
-                const vehicle_scale = 0.4
+                this.moving_speed = 60;
+                this.vehicle_scale = 0.4
                 this.sky_bg = new game.TilingSprite(
                     'assets/sky.jpg',
                     game.width,
@@ -56,11 +56,11 @@ game.module('game.main')
                 this.mps_ftyre = new game.Sprite('Mazda3MPS_tyre--front.png')
                 this.mps_rtyre = new game.Sprite('Mazda3MPS_tyre--rear.png')
 
-                this.mps_body.scale.x = this.mps_body.scale.y = vehicle_scale
-                this.mps_body_iso.scale.x = this.mps_body_iso.scale.y = vehicle_scale
-                this.mps_mask.scale.x = this.mps_mask.scale.y = vehicle_scale
-                this.mps_ftyre.scale.x = this.mps_ftyre.scale.y = vehicle_scale
-                this.mps_rtyre.scale.x = this.mps_rtyre.scale.y = vehicle_scale
+                this.mps_body.scale.x = this.mps_body.scale.y = this.vehicle_scale
+                this.mps_body_iso.scale.x = this.mps_body_iso.scale.y = this.vehicle_scale
+                this.mps_mask.scale.x = this.mps_mask.scale.y = this.vehicle_scale
+                this.mps_ftyre.scale.x = this.mps_ftyre.scale.y = this.vehicle_scale
+                this.mps_rtyre.scale.x = this.mps_rtyre.scale.y = this.vehicle_scale
 
                 this.mps_ftyre.anchor.set(110, 106)
                 this.mps_rtyre.anchor.set(110, 106)
