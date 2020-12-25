@@ -1,29 +1,29 @@
 {
-    "frames": { 
+    "frames": {
         "Mazda3MPS__mainframe-iso.png": {
             "x": 2,
             "y": 956,
             "w": 1231,
             "h": 537
-        }, 
+        },
         "Mazda3MPS__mainframe.png": {
             "x": 2,
             "y": 2,
             "w": 1438,
             "h": 475
-        }, 
+        },
         "Mazda3MPS__mask.png": {
             "x": 2,
             "y": 479,
             "w": 1438,
             "h": 475
-        }, 
+        },
         "Mazda3MPS_tyre--front.png": {
             "x": 1235,
             "y": 956,
             "w": 218,
             "h": 209
-        }, 
+        },
         "Mazda3MPS_tyre--rear.png": {
             "x": 1235,
             "y": 1167,
@@ -32,6 +32,8 @@
         }
     },
     "meta": {
-        "image": "mazdaspeed.png"
+        "image": "mazdaspeed.png",
+        "sprite_author": "zakhov@github",
+        "photo_credits": "netcarshow.com"
     }
 }

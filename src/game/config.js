@@ -1,11 +1,11 @@
 game.config = {
-  name: 'mazdaspeed',
-  system: {
-    width: 720,
-    height: 1280,
-    scale: true,
-    center: true,
-    resize: false,
-  },
-  mobile: {},
+    name: 'mazdaspeed',
+    system: {
+        width: 1280,
+        height: 720,
+        scale: true,
+        center: true,
+        resize: false,
+    },
+    mobile: {},
 }

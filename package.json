@@ -1,12 +1,15 @@
 {
-  "name": "mazdaspeed-playground",
-  "version": "0.0.1",
-  "author": "Zaki Hanafiah",
-  "license": "MIT",
-  "devDependencies": {
-    "panda-toolkit": "^2.1.3"
-  },
-  "scripts": {
-    "build": "panda build"
-  }
+    "name": "mazdaspeed-playground",
+    "version": "0.0.1",
+    "author": "Zaki Hanafiah",
+    "license": "MIT",
+    "devDependencies": {
+        "eslint": "^7.16.0",
+        "eslint-config-prettier": "^7.1.0",
+        "panda-toolkit": "^2.1.3",
+        "prettier": "2.2.1"
+    },
+    "scripts": {
+        "build": "panda build"
+    }
 }
