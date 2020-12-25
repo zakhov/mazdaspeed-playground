@@ -1,8 +1,8 @@
 game.config = {
   name: 'mazdaspeed',
   system: {
-    width: 768,
-    height: 1024,
+    width: 720,
+    height: 1280,
     scale: true,
     center: true,
     resize: false,
