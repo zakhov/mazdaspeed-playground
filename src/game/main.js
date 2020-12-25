@@ -3,7 +3,7 @@ game.module('game.main')
     .body(function () {
         game.createScene('Main', {
             init: function () {
-                this.moving_speed = 60;
+                this.moving_speed = 60
                 this.vehicle_scale = 0.4
                 this.sky_bg = new game.TilingSprite(
                     'assets/sky.jpg',
