@@ -2,4 +2,9 @@
 build
 coverage
 engine
+media/assets
 package-lock.json
+.eslintignore
+.eslintrc.json
+.prettierrc.json
+index.html
