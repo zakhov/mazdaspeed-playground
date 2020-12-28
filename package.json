@@ -20,6 +20,7 @@
         "build:game": "npx panda build && npx copyfiles -f ./game.min.js public && npx rimraf ./game.min.js && echo 'Game build successfully created.'",
         "build:assets": "npx gulp copyAssets && echo 'Assets successfully compiled.'",
         "build": "npm run build:game && npm run build:assets && npx gulp buildIndex && echo 'Production build successfully created.'",
-        "dev": "npx live-server --port=8081 --watch=./src,./media"
+        "dev": "npx live-server --port=8081 --watch=./src,./media",
+        "serve": "npm run build && npx live-server --port=8082 --open=./public"
     }
 }
