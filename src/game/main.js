@@ -68,9 +68,9 @@ game.module('game.main')
                 // this.mps_body_iso.addTo(this.stage);
             },
             update: function () {
-                if (game.keyboard.down('SPACE') || this.is_vehicle_touched) this.moving_speed += 1
+                if (game.keyboard.down('SPACE') || this.is_vehicle_touched) this.moving_speed += 1.5
                 else {
-                    this.moving_speed -= this.moving_speed > 0 ? 1 : 0
+                    this.moving_speed -= this.moving_speed > 0 ? 0.5 : 0
                 }
                 this.mountain_tile.tilePosition.x += this.moving_speed * 0.97 * game.delta
                 this.mountain_tile2.tilePosition.x += this.moving_speed * 0.95 * game.delta
