@@ -7,5 +7,11 @@ game.config = {
         center: true,
         resize: false,
     },
-    mobile: {},
+    debug: {
+        enabled: true,
+        showBodies: false,
+        showBounds: false,
+        showSprites: false,
+        showHitAreas: false,
+    },
 }

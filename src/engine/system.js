@@ -22,12 +22,12 @@ game.createClass('System', {
     **/
     canvasWidth: 0,
     /**
-        Current delta time in seconds (game.delta).
+        Time since last frame (seconds), shorthand game.delta
         @property {Number} delta
     **/
     delta: 0,
     /**
-        Height of the game canvas (game.height).
+        Height of the game canvas (pixels), shorthand game.height
         @property {Number} height
     **/
     height: 0,
@@ -57,7 +57,12 @@ game.createClass('System', {
     **/
     scene: null,
     /**
-        Width of the game canvas (game.width).
+        Name of current scene.
+        @property {String} sceneName
+    **/
+    sceneName: null,
+    /**
+        Width of the game canvas (pixels), shorthand game.width
         @property {Number} width
     **/
     width: 0,
@@ -125,38 +130,22 @@ game.createClass('System', {
         this.canvasWidth = this.originalWidth * game.scale;
         this.canvasHeight = this.originalHeight * game.scale;
 
-        var visibilityChange;
-        if (typeof document.hidden !== 'undefined') {
-            visibilityChange = 'visibilitychange';
-        }
-        else if (typeof document.mozHidden !== 'undefined') {
-            visibilityChange = 'mozvisibilitychange';
-        }
-        else if (typeof document.msHidden !== 'undefined') {
-            visibilityChange = 'msvisibilitychange';
-        }
-        else if (typeof document.webkitHidden !== 'undefined') {
-            visibilityChange = 'webkitvisibilitychange';
-        }
-        document.addEventListener(visibilityChange, function() {
-            if (game.System.pauseOnHide) {
-                var hidden = !!game._getVendorAttribute(document, 'hidden');
-                if (hidden) game.system.pause(true);
-                else game.system.resume(true);
-            }
-        });
+        if (typeof document === 'undefined') return;
+        
+        document.addEventListener(this._getVisibilityChangeFunction(), this._visibilityChange);
 
         if (game.System.resize) game.System.center = false;
 
         this._initRenderer();
 
-        if (game.System.hidpi)  {
+        if (game.System.hidpi) {
             this.canvasWidth /= game.device.pixelRatio;
             this.canvasHeight /= game.device.pixelRatio;
         }
 
-        if (game.device.WKWebView) window.addEventListener('orientationchange', this._onWindowResize.bind(this));
-        else window.addEventListener('resize', this._onWindowResize.bind(this));
+        this._onWindowResizeFunc = this._onWindowResize.bind(this);
+        if (game.device.WKWebView) window.addEventListener('orientationchange', this._onWindowResizeFunc);
+        else window.addEventListener('resize', this._onWindowResizeFunc);
         this._onWindowResize();
     },
 
@@ -243,6 +232,25 @@ game.createClass('System', {
         }
         else this._setSceneNow(sceneName, param);
     },
+    
+    /**
+        @method _getVisibilityChangeFunction
+        @private
+    **/
+    _getVisibilityChangeFunction: function() {
+        if (typeof document.hidden !== 'undefined') {
+            return 'visibilitychange';
+        }
+        else if (typeof document.mozHidden !== 'undefined') {
+            return 'mozvisibilitychange';
+        }
+        else if (typeof document.msHidden !== 'undefined') {
+            return 'msvisibilitychange';
+        }
+        else if (typeof document.webkitHidden !== 'undefined') {
+            return 'webkitvisibilitychange';
+        }
+    },
 
     /**
         @method _hideRotateScreen
@@ -284,6 +292,17 @@ game.createClass('System', {
         }
 
         if (game.isStarted && !game.scene) game.onStart();
+    },
+    
+    /**
+        Remove all event listeners.
+        @method _remove
+        @private
+    **/
+    _remove: function() {
+        document.removeEventListener(this._getVisibilityChangeFunction(), this._visibilityChange);
+        if (game.device.WKWebView) window.removeEventListener('orientationchange', this._onWindowResizeFunc);
+        else window.removeEventListener('resize', this._onWindowResizeFunc);
     },
 
     /**
@@ -330,7 +349,7 @@ game.createClass('System', {
         game.Timer.update();
         game.delta = this.delta = game.Timer.delta / 1000;
 
-        game.input._update();
+        if (game.input) game.input._update();
         this.scene._update();
 
         if (this._newSceneName) this._setSceneNow(this._newSceneName, this._newSceneParam);
@@ -369,10 +388,12 @@ game.createClass('System', {
         @private
     **/
     _setSceneNow: function(sceneName, param) {
+        this.sceneName = sceneName;
         this._newSceneName = null;
         if (this.scene && this.scene._exit(sceneName)) return;
         if (this.paused) this.paused = false;
         game.TilingSprite.clearCache();
+        game.Sprite._clearTintedTextures();
         this.scene = new game[sceneName](param);
         this._startRunLoop();
     },
@@ -430,11 +451,29 @@ game.createClass('System', {
         @private
     **/
     _updateWindowSize: function() {
+        if (typeof document === 'undefined') return;
+        if (game.device.android && window.innerHeight - this._windowHeight === 24) return; // Fix Android 6 screen size bug
         this._windowWidth = game.device.WKWebView ? document.documentElement.clientWidth : window.innerWidth;
         this._windowHeight = game.device.WKWebView ? document.documentElement.clientHeight : window.innerHeight;
         if (game.device.crosswalk && this._windowWidth === 0) {
             this._windowWidth = window.screen.width;
             this._windowHeight = window.screen.height;
+        }
+        if (Math.abs(window.orientation) === 90 && game.device.iPhone && game.device.safari) {
+            // Fix iPhone Safari landscape fullscreen
+            this._windowHeight++;
+        }
+    },
+    
+    /**
+        @method _visibilityChange
+        @private
+    **/
+    _visibilityChange: function() {
+        if (game.System.pauseOnHide) {
+            var hidden = !!game._getVendorAttribute(document, 'hidden');
+            if (hidden) game.system.pause(true);
+            else game.system.resume(true);
         }
     }
 });
@@ -467,9 +506,9 @@ game.addAttributes('System', {
     /**
         Scale canvas for HiDPI screens.
         @attribute {Boolean} hidpi
-        @default false
+        @default true
     **/
-    hidpi: false,
+    hidpi: true,
     /**
         HiRes mode multiplier.
         @attribute {Number} hires

@@ -78,8 +78,8 @@ game.createClass('TilingSprite', 'Container', {
             this._sprite.texture.baseTexture.remove();
             this._sprite.texture.remove();
         }
-        var canvas = document.createElement('canvas');
-        var context = canvas.getContext('2d');
+        var canvas = game.TilingSprite._canvas;
+        var context = game.TilingSprite._context;
 
         var tx = Math.ceil(this.width / this.texture.width);
         var ty = Math.ceil(this.height / this.texture.height);
@@ -101,7 +101,9 @@ game.createClass('TilingSprite', 'Container', {
             }
         }
         
-        var texture = game.Texture.fromCanvas(canvas);
+        var texture = game.Texture.fromImage(canvas.toDataURL());
+        texture.width = canvas.width;
+        texture.height = canvas.height;
         this.tw = texture.width;
         this.th = texture.height;
         game.TilingSprite.cache[this.texture.baseTexture._id] = texture;
@@ -175,8 +177,8 @@ game.createClass('TilingSprite', 'Container', {
 
         var scaleX = this._worldTransform.a / this._cosCache;
         var scaleY = this._worldTransform.d / this._cosCache;
-        var tw = this.tw * game.scale;
-        var th = this.th * game.scale;
+        var tw = this.tw;
+        var th = this.th;
         var width = this.width / scaleX * game.scale;
         var height = this.height / scaleY * game.scale;
         var tileX = this.tilePosition.x * game.scale;
@@ -249,6 +251,16 @@ game.addAttributes('TilingSprite', {
         @attribute {Object} cache
     **/
     cache: {},
+    /**
+        @attribute {HTMLCanvasElement} _canvas
+        @private
+    **/
+    _canvas: null,
+    /**
+        @attribute {CanvasRenderingContext2D} _context
+        @private
+    **/
+    _context: null,
 
     /**
         @method clearCache
@@ -262,6 +274,11 @@ game.addAttributes('TilingSprite', {
         }
     }
 });
+
+if (typeof document !== 'undefined') {
+    game.TilingSprite._canvas = document.createElement('canvas');
+    game.TilingSprite._context = game.TilingSprite._canvas.getContext('2d');
+}
 
 game.defineProperties('TilingSprite', {
     width: {

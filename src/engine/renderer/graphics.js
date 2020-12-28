@@ -101,6 +101,62 @@ game.createClass('Graphics', 'Container', {
     },
 
     /**
+        Draw bezier curve.
+        @method drawCurve
+        @param {Curve|Number} sx
+        @param {Number} sy
+        @param {Number} ex
+        @param {Number} ey
+        @param {Number} h1x
+        @param {Number} h1y
+        @param {Number} h2x
+        @param {Number} h2y
+        @chainable
+    **/
+    drawCurve: function(sx, sy, ex, ey, h1x, h1y, h2x, h2y) {
+        this.lineWidth = this.lineWidth || 1;
+        var shape = typeof sx === 'number' ? new game.Curve(sx, sy, ex, ey, h1x, h1y, h2x, h2y) : sx;
+        this._drawShape(shape, true);
+        return this;
+    },
+    
+    /**
+        @method drawLine
+        @param {Number} sx Start x
+        @param {Number} sy Start y
+        @param {Number} tx End x
+        @param {Number} ty End y
+        @chainable
+    **/
+    drawLine: function(sx, sy, tx, ty) {
+        if (!tx && !ty) {
+            tx = sx;
+            ty = sy;
+            sx = 0;
+            sy = 0;
+        }
+        this.lineWidth = this.lineWidth || 1;
+        tx *= game.scale;
+        ty *= game.scale;
+        var shape = new game.Rectangle(tx, ty, sx, sy);
+        this._drawShape(shape, true);
+        return this;
+    },
+    
+    /**
+        @method drawPolygon
+        @param {Array} points List of points.
+        @param {Boolean} [close] Close the polygon.
+        @chainable
+    **/
+    drawPolygon: function(points, close) {
+        var poly = new game.Polygon(points);
+        if (close) poly.close();
+        this._drawShape(poly);
+        return this;
+    },
+
+    /**
         @method drawRect
         @param {Number} x
         @param {Number} y
@@ -125,18 +181,10 @@ game.createClass('Graphics', 'Container', {
         @chainable
     **/
     lineStyle: function(width, color, alpha) {
-        this.lineWidth = width || this.lineWidth;
+        this.lineWidth = width || this.lineWidth;
         this.lineColor = color || this.lineColor;
-        this.lineAlpha = alpha || this.lineAlpha;
+        this.lineAlpha = alpha || this.lineAlpha;
         return this;
-    },
-
-    lineTo: function(x, y) {
-
-    },
-
-    moveTo: function(x, y) {
-
     },
 
     /**
@@ -144,8 +192,8 @@ game.createClass('Graphics', 'Container', {
         @param {Rectangle|Circle} shape
         @private
     **/
-    _drawShape: function(shape) {
-        var data = new game.GraphicsShape(this.lineWidth, this.lineColor, this.lineAlpha, this.fillColor, this.fillAlpha, shape);
+    _drawShape: function(shape, isLine) {
+        var data = new game.GraphicsShape(this.lineWidth, this.lineColor, this.lineAlpha, this.fillColor, this.fillAlpha, shape, isLine);
         this.shapes.push(data);
     },
 
@@ -162,20 +210,20 @@ game.createClass('Graphics', 'Container', {
 
         for (var i = 0; i < this.shapes.length; i++) {
             var data = this.shapes[i];
-            var maxX = data.shape.x;
-            var maxY = data.shape.y;
+            var sx = data.shape.x;
+            var sy = data.shape.y;
 
             if (data.shape.radius) {
-                maxX += data.shape.radius / game.scale;
-                maxY += data.shape.radius / game.scale;
+                sx += data.shape.radius / game.scale;
+                sy += data.shape.radius / game.scale;
             }
             else {
-                maxX += data.shape.width / game.scale;
-                maxY += data.shape.height / game.scale;
+                sx += data.shape.width / game.scale;
+                sy += data.shape.height / game.scale;
             }
 
-            width = Math.max(width, maxX);
-            height = Math.max(height, maxY);
+            width = Math.max(width, sx);
+            height = Math.max(height, sy);
         }
 
         var x2 = a * width + tx;
@@ -203,7 +251,6 @@ game.createClass('Graphics', 'Container', {
         var ty = wt.ty * game.scale;
 
         context.globalCompositeOperation = this.blendMode;
-
         context.setTransform(wt.a, wt.b, wt.c, wt.d, tx, ty);
 
         for (var i = 0; i < this.shapes.length; i++) {
@@ -253,6 +300,10 @@ game.createClass('GraphicsShape', {
     **/
     fillColor: '',
     /**
+        @property {Boolean} isLine
+    **/
+    isLine: false,
+    /**
         @property {Number} lineAlpha
     **/
     lineAlpha: 0,
@@ -265,17 +316,18 @@ game.createClass('GraphicsShape', {
     **/
     lineWidth: 0,
     /**
-        @property {Rectangle|Circle} shape
+        @property {Arc|Circle|Rectangle} shape
     **/
     shape: null,
 
-    staticInit: function(lineWidth, lineColor, lineAlpha, fillColor, fillAlpha, shape) {
+    staticInit: function(lineWidth, lineColor, lineAlpha, fillColor, fillAlpha, shape, isLine) {
         this.lineWidth = lineWidth;
         this.lineColor = lineColor;
         this.lineAlpha = lineAlpha;
         this.fillColor = fillColor;
         this.fillAlpha = fillAlpha;
         this.shape = shape;
+        this.isLine = isLine || this.isLine;
     },
 
     /**
@@ -293,7 +345,7 @@ game.createClass('GraphicsShape', {
 
         this._renderShape(context);
 
-        if (this.fillColor && this.fillAlpha) context.fill();
+        if (this.fillColor && this.fillAlpha && !this.isLine) context.fill();
         if (this.lineWidth) {
             context.globalAlpha = this.lineAlpha * alpha;
             context.stroke();
@@ -309,17 +361,51 @@ game.createClass('GraphicsShape', {
         var shape = this.shape;
         var x = shape.x * game.scale;
         var y = shape.y * game.scale;
-
-        if (shape.width) {
+        
+        if (this.isLine && shape.start) {
+            context.moveTo(shape.start.x * game.scale, shape.start.y * game.scale);
+            context.bezierCurveTo﻿(
+                shape.handle1.x * game.scale,
+                shape.handle1.y * game.scale,
+                shape.handle2.x * game.scale,
+                shape.handle2.y * game.scale,
+                shape.end.x * game.scale,
+                shape.end.y * game.scale
+            );
+        }
+        else if (this.isLine) {
+            context.moveTo(x, y);
+            context.lineTo(shape.width, shape.height);
+        }
+        else if (shape.width) {
             context.rect(x, y, shape.width, shape.height);
         }
         else if (shape.radius) {
             if (typeof shape.startAngle === 'number' && typeof shape.endAngle === 'number') {
+                context.moveTo(x, y);
                 context.arc(x, y, shape.radius, shape.startAngle, shape.endAngle);
                 context.closePath();
             }
             else {
                 context.arc(x, y, shape.radius, 0, Math.PI * 2);
+            }
+        }
+        else if (shape.points) {
+            context.moveTo(0, 0);
+            for (var i = 0; i < shape.points.length; i++) {
+                var point = shape.points[i];
+                var x = point.x;
+                var y = point.y;
+                if (x === undefined && point.length === undefined) {
+                    x = point;
+                    y = shape.points[i + 1];
+                    i++;
+                }
+                else if (x === undefined) {
+                    context.bezierCurveTo﻿(point[0], point[1], point[2], point[3], point[4], point[5]);
+                    continue;
+                }
+                context.lineTo(x * game.scale, y * game.scale);
             }
         }
     }

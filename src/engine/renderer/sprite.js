@@ -18,32 +18,53 @@ game.module(
 **/
 game.createClass('Sprite', 'Container', {
     /**
+        Blend mode for sprite rendering.
         @property {String} blendMode
         @default source-over
     **/
     blendMode: 'source-over',
     /**
+        Texture for sprite.
         @property {Texture} texture
     **/
     texture: null,
     /**
+        Tint sprite with color.
         @property {String} tint
     **/
     tint: null,
     /**
+        Alpha of sprite tint.
         @property {Number} tintAlpha
         @default 1
     **/
     tintAlpha: 1,
+    /**
+        Crop tint area. x is from left, y is from top, width is from right and height is from bottom.
+        @property {Rectangle} tintCrop
+    **/
+    tintCrop: null,
+    /**
+        @property {Number} _tintAlpha
+        @private
+    **/
+    _tintAlpha: 1,
+    /**
+        @property {String} _tintColor
+        @private
+    **/
+    _tintColor: null,
 
     staticInit: function(texture, props) {
+        this.tintCrop = new game.Rectangle();
         this.super(props);
-        this.setTexture(this.texture || texture);
+        this.setTexture(this.texture || texture);
     },
 
     /**
+        Change texture to sprite.
         @method setTexture
-        @param {Texture|String} texture
+        @param {Texture|String} texture Asset id or instance of Texture
     **/
     setTexture: function(texture) {
         this.texture = texture instanceof game.Texture ? texture : game.Texture.fromAsset(texture);
@@ -54,36 +75,52 @@ game.createClass('Sprite', 'Container', {
         @private
     **/
     _destroyTintedTexture: function() {
-        if (this._tintedTexture) this._tintedTexture.remove();
+        if (this._tintedTexture) {
+            this._tintedTexture.baseTexture.remove();
+            this._tintedTexture.remove();
+        }
         this._tintedTexture = null;
         this._tintedTextureGenerated = false;
     },
 
     /**
         @method _generateTintedTexture
-        @param {String} tint
+        @param {String} color
         @return {Texture}
         @private
     **/
-    _generateTintedTexture: function(tint, alpha) {
-        var canvas = document.createElement('canvas');
-        var context = canvas.getContext('2d');
-        var bounds = this._getBounds();
+    _generateTintedTexture: function(color, alpha) {
+        var canvas = game.Sprite._canvas;
+        var context = game.Sprite._context;
 
-        canvas.width = (bounds.width / this.scale.x) * game.scale;
-        canvas.height = (bounds.height / this.scale.y) * game.scale;
+        canvas.width = this.texture.width * game.scale;
+        canvas.height = this.texture.height * game.scale;
 
-        context.fillStyle = tint.substr(0, 7);
-        context.globalAlpha = alpha || 1.0;
-        context.fillRect(0, 0, canvas.width, canvas.height);
-        context.globalAlpha = 1.0;
+        this._tintColor = color;
+        this._tintAlpha = alpha || 1;
+        
+        context.fillStyle = this._tintColor.substr(0, 7);
+        context.globalAlpha = this._tintAlpha;
+        var x = this.tintCrop.x * game.scale;
+        var y = this.tintCrop.y * game.scale;
+        var width = canvas.width - x - this.tintCrop.width * game.scale;
+        var height = canvas.height - y - this.tintCrop.height * game.scale;
+        context.fillRect(x, y, width, height);
+        context.globalAlpha = 1;
 
         var blendMode = this.blendMode;
         this.blendMode = 'destination-atop';
-        this._renderCanvas(context, new game.Matrix());
+        alpha = this._worldAlpha;
+        this._worldAlpha = 1;
+        this._renderCanvas(context, game.Matrix.empty);
+        this._worldAlpha = alpha;
         this.blendMode = blendMode;
 
-        return game.Texture.fromCanvas(canvas);
+        var texture = game.Texture.fromImage(canvas.toDataURL());
+        texture.width = canvas.width;
+        texture.height = canvas.height;
+        game.Sprite._tintedTextures.push(texture);
+        return texture;
     },
 
     _getBounds: function(transform) {
@@ -94,6 +131,8 @@ game.createClass('Sprite', 'Container', {
             this._worldBounds.height = this._cachedSprite.texture.height * this._worldTransform.d;
             return this._worldBounds;
         }
+
+        if (this._lastTransformUpdate < game.Timer._lastFrameTime) this.updateTransform();
 
         var width = this.texture.width;
         var height = this.texture.height;
@@ -157,19 +196,24 @@ game.createClass('Sprite', 'Container', {
         
         if (!this.texture.width || !this.texture.height) return true;
 
-        if (this.tint && !this._tintedTexture && !this._tintedTextureGenerated) {
+        if (this.tint && !this._tintedTexture && !this._tintedTextureGenerated && this.tintAlpha > 0) {
             this._tintedTextureGenerated = true;
             this._tintedTexture = this._generateTintedTexture(this.tint, this.tintAlpha);
         }
-        else if (!this.tint && this._tintedTexture) {
+        else if (this.tint && this.tint !== this._tintColor && this.tintAlpha > 0 || this.tint && this.tintAlpha !== this._tintAlpha && this.tintAlpha > 0) {
+            this._destroyTintedTexture();
+            this._tintedTextureGenerated = true;
+            this._tintedTexture = this._generateTintedTexture(this.tint, this.tintAlpha);
+        }
+        else if (!this.tint && this._tintedTexture || this.tintAlpha === 0 && this._tintedTexture) {
             this._destroyTintedTexture();
         }
         
         context.globalCompositeOperation = this.blendMode;
         context.globalAlpha = this._worldAlpha;
 
-        var t = this._tintedTexture || this.texture;
-        var wt = transform || this._worldTransform;
+        var t = this._tintedTexture || this.texture;
+        var wt = transform || this._worldTransform;
         var tx = wt.tx;
         var ty = wt.ty;
         
@@ -230,5 +274,41 @@ game.defineProperties('Sprite', {
         }
     }
 });
+
+game.addAttributes('Sprite', {
+    /**
+        @attribute {HTMLCanvasElement} _canvas
+        @private
+    **/
+    _canvas: null,
+    /**
+        @attribute {CanvasRenderingContext2D} _context
+        @private
+    **/
+    _context: null,
+    /**
+        @attribute {Array} _tintedTextures
+        @private
+    **/
+    _tintedTextures: [],
+    
+    /**
+        @method _clearTintedTextures
+        @static
+        @private
+    **/
+    _clearTintedTextures: function() {
+        for (var i = 0; i < this._tintedTextures.length; i++) {
+            this._tintedTextures[i].baseTexture.remove();
+            this._tintedTextures[i].remove();
+        }
+        this._tintedTextures.length = 0;
+    }
+});
+
+if (typeof document !== 'undefined') {
+    game.Sprite._canvas = document.createElement('canvas');
+    game.Sprite._context = game.Sprite._canvas.getContext('2d');
+}
 
 });

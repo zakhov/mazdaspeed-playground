@@ -1,10 +1,12 @@
 # Ignore artifacts:
 build
 coverage
-engine
-media/assets
+src/engine
+src/plugin
+public
 package-lock.json
 .eslintignore
 .eslintrc.json
 .prettierrc.json
 index.html
+.vscode

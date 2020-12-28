@@ -66,8 +66,21 @@ game.createClass('Debug', {
         @private
     **/
     _frames: 0,
+    /**
+        @property {Array} _hitAreas
+        @private
+    **/
+    _hitAreas: [],
 
     init: function() {
+        if (game.Debug.showInfo) {
+            console.log('Panda Engine ' + game.version);
+            for (var name in game.modules) {
+                if (name.indexOf('plugin') === 0 && game.modules[name].version) {
+                    console.log(name + ' ' + game.modules[name].version);
+                }
+            }
+        }
         game.Input.inject({
             _calculateXY: function(event) {
                 if (game.Debug.fakeTouch) return;
@@ -120,9 +133,10 @@ game.createClass('Debug', {
         if (game.device.cocoonCanvasPlus) return;
 
         game.Container.inject({
-            _renderCachedSprite: function(context) {
-                this.super(context);
-                game.debug._draws++;
+            _renderCanvas: function(context) {
+                if (game.scene && game.scene.stage === this) return;
+                if (game.Debug.showBounds) game.debug._drawBounds(this);
+                if (game.Debug.showHitAreas && this.hitArea) game.debug._hitAreas.push(this);
             }
         });
 
@@ -160,6 +174,7 @@ game.createClass('Debug', {
             _renderCanvas: function(context) {
                 this.super(context);
                 game.debug._draws += this.shapes.length;
+                if (game.Debug.showBounds) game.debug._drawBounds(this);
             }
         });
 
@@ -168,10 +183,24 @@ game.createClass('Debug', {
                 this.super(context, transform, rect, offset);
                 game.debug._draws++;
                 if (game.Debug.showSprites) game.debug._drawSprite(this, transform, rect, offset);
+                if (game.Debug.showBounds) game.debug._drawBounds(this);
+                if (game.Debug.showHitAreas && this.hitArea) game.debug._hitAreas.push(this);
             }
         });
 
         this._addPanel();
+    },
+
+    /**
+        Add text to debug panel.
+        @method addText
+        @param {String} name
+        @param {Number|Boolean|String} value
+    **/
+    addText: function(name, value) {
+        this.text += name;
+        if (typeof value !== 'undefined') this.text += ': ' + value;
+        this.text += ' ';
     },
 
     /**
@@ -193,18 +222,6 @@ game.createClass('Debug', {
         this.panel.style.pointerEvents = 'none';
         this.panel.style.opacity = game.Debug.panelAlpha;
         document.body.appendChild(this.panel);
-    },
-
-    /**
-        @method _addText
-        @private
-        @param {String} name
-        @param {Number|Boolean|String} value
-    **/
-    _addText: function(name, value) {
-        this.text += name;
-        if (typeof value !== 'undefined') this.text += ': ' + value;
-        this.text += ' ';
     },
 
     /**
@@ -264,6 +281,25 @@ game.createClass('Debug', {
             context.stroke();
         }
     },
+    
+    /**
+        @method _drawBounds
+        @param {Container} container
+        @private
+    **/
+    _drawBounds: function(container) {
+        var context = game.renderer.context;
+        var bounds = container._getBounds();
+        
+        context.globalCompositeOperation = 'source-over';
+        context.setTransform(1, 0, 0, 1, 0, 0);
+        context.globalAlpha = game.Debug.boundAlpha;
+        context.lineWidth = game.Debug.boundLineWidth;
+        context.strokeStyle = game.Debug.boundColor;
+        context.beginPath();
+        context.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+        context.stroke();
+    },
 
     /**
         @method _drawCamera
@@ -311,7 +347,7 @@ game.createClass('Debug', {
         @param {Container} container
     **/
     _drawHitArea: function(container) {
-        if (!container.visible || container.alpha <= 0 || !container.renderable) return;
+        if (!container.visible || container.alpha <= 0 || !container.renderable) return;
 
         var context = game.renderer.context;
         var wt = container._worldTransform;
@@ -328,28 +364,28 @@ game.createClass('Debug', {
         if (hitArea) {
             var wt = container._worldTransform;
             var bounds = container._getBounds();
-            var tx = (bounds.x || wt.tx);
-            var ty = (bounds.y || wt.ty);
+            var tx = typeof bounds.x === 'number' ? bounds.x : wt.tx;
+            var ty = typeof bounds.y === 'number' ? bounds.y : wt.ty;
             var scaleX = Math.abs(wt.a / container._cosCache);
             var scaleY = Math.abs(wt.d / container._cosCache);
-            var aPercX = (container.anchor.x / container.width) || 0;
-            var aPercY = (container.anchor.y / container.height) || 0;
+            var aPercX = (container.anchor.x / container.width) || 0;
+            var aPercY = (container.anchor.y / container.height) || 0;
             var hx = tx + hitArea.x * scaleX;
             var hy = ty + hitArea.y * scaleY;
             hx += bounds.width * scaleX * aPercX;
             hy += bounds.height * scaleY * aPercY;
             if (hitArea.radius) {
                 // Circle
-                var r = hitArea.radius / 2 * game.scale;
-                context.setTransform(1, 0, 0, 1, hx, hy);
+                var r = hitArea.radius * game.scale;
+                context.setTransform(1, 0, 0, 1, hx - r, hy - r);
                 context.beginPath();
                 context.arc(r, r, r, 0, Math.PI * 2);
                 context.fill();
             }
             else {
                 // Rectangle
-                var hw = hitArea.width * scaleX;
-                var hh = hitArea.height * scaleY;
+                var hw = hitArea.width * scaleX * game.scale;
+                var hh = hitArea.height * scaleY * game.scale;
                 context.setTransform(1, 0, 0, 1, hx, hy);
                 context.fillRect(0, 0, hw, hh);
             }
@@ -376,8 +412,8 @@ game.createClass('Debug', {
         @private
     **/
     _drawHitAreas: function() {
-        for (var i = 0; i < game.input.items.length; i++) {
-            var item = game.input.items[i];
+        for (var i = 0; i < this._hitAreas.length; i++) {
+            var item = this._hitAreas[i];
             this._drawHitArea(item);
         }
     },
@@ -420,9 +456,9 @@ game.createClass('Debug', {
         
         context.globalCompositeOperation = 'source-over';
         context.setTransform(wt.a, wt.b, wt.c, wt.d, x, y);
-        context.globalAlpha = game.Debug.boundAlpha;
-        context.lineWidth = game.Debug.boundLineWidth;
-        context.strokeStyle = game.Debug.boundColor;
+        context.globalAlpha = game.Debug.spriteAlpha;
+        context.lineWidth = game.Debug.spriteLineWidth;
+        context.strokeStyle = game.Debug.spriteColor;
         context.beginPath();
         context.rect(tx, ty, width, height);
         context.stroke();
@@ -434,6 +470,7 @@ game.createClass('Debug', {
     **/
     _reset: function() {
         this._draws = 0;
+        this._hitAreas.length = 0;
     },
 
     /**
@@ -452,7 +489,7 @@ game.createClass('Debug', {
 
         this._frames++;
 
-        var now = Date.now();
+        var now = performance.now();
         if (now >= this.last + game.Debug.panelUpdate) {
             this.fps = Math.round(this._frames * 1000 / (now - this.last));
             this.last = now;
@@ -485,17 +522,22 @@ game.createClass('Debug', {
         }
     },
 
+    /**
+        @method _updatePanel
+        @private
+    **/
     _updatePanel: function() {
         this.text = '';
-        this._addText(game.version);
-        this._addText('FPS', this.fps);
-        this._addText('CANVAS', game.renderer.canvas.width + 'x' + game.renderer.canvas.height);
-        this._addText('DRAWS', this._draws);
-        this._addText('BODIES', this._bodies.length);
-        this._addText('UPDATES', game.scene.objects.length);
-        this._addText('TWEENS', game.scene.tweens.length);
-        this._addText('TIMERS', game.scene.timers.length);
-        this._addText('HIRES', game.scale);
+        this.addText(game.version);
+        this.addText('FPS', this.fps);
+        this.addText('CANVAS', game.renderer.canvas.width + 'x' + game.renderer.canvas.height);
+        this.addText('DRAWS', this._draws);
+        this.addText('BODIES', this._bodies.length);
+        this.addText('UPDATES', game.scene.objects.length);
+        this.addText('TWEENS', game.scene.tweens.length);
+        this.addText('TIMERS', game.scene.timers.length);
+        this.addText('HIRES', game.scale);
+        game.Debug.updatePanel.call(this);
         this.panel.innerHTML = this.text;
     }
 });
@@ -680,6 +722,12 @@ game.addAttributes('Debug', {
     **/
     showBodies: false,
     /**
+        Draw bounds of containers and graphics.
+        @attribute {Boolean} showBounds
+        @default false
+    **/
+    showBounds: false,
+    /**
         Draw camera debug.
         @attribute {Boolean} showCamera
         @default false
@@ -692,6 +740,12 @@ game.addAttributes('Debug', {
     **/
     showHitAreas: false,
     /**
+        Show version info on console.
+        @attribute {Boolean} showInfo
+        @default true
+    **/
+    showInfo: true,
+    /**
         Show debug panel.
         @attribute {Boolean} showPanel
         @default true
@@ -702,7 +756,31 @@ game.addAttributes('Debug', {
         @attribute {Boolean} showSprites
         @default false
     **/
-    showSprites: false
+    showSprites: false,
+    /**
+        Alpha of sprites.
+        @attribute {Number} spriteAlpha
+        @default 0.5
+    **/
+    spriteAlpha: 0.5,
+    /**
+        Color of sprites.
+        @attribute {Number} spriteColor
+        @default #00ff00
+    **/
+    spriteColor: '#00ff00',
+    /**
+        Bounds line width.
+        @attribute {Number} spriteLineWidth
+        @default 1
+    **/
+    spriteLineWidth: 1,
+    /**
+        Function that is called every time the debug panel is updated.
+        @method updatePanel
+        @static
+    **/
+    updatePanel: function() {}
 });
 
 game.createClass('DebugTouch', {
@@ -776,13 +854,15 @@ game.createClass('DebugTouch', {
     }
 });
 
+if (typeof document === 'undefined') return;
 var href = document.location.href.toLowerCase();
 if (href.match(/\?debug/)) game.Debug.enabled = true;
 if (href.match(/\?debugdraw/)) {
     game.Debug.showBodies = true;
-    game.Debug.showSprites = true;
+    game.Debug.showBounds = true;
     game.Debug.showCamera = true;
     game.Debug.showHitAreas = true;
+    game.Debug.showSprites = true;
 }
 if (href.match(/\?debugtouch/)) {
     game.Debug.fakeTouch = true;

@@ -166,6 +166,18 @@ game.createClass('Text', 'Container', {
     **/
     fontClass: null,
     /**
+        If text height is higher than maxHeight value, text will be scaled down to fit maxHeight. 0 to disable.
+        @property {Number} maxHeight
+        @default 0
+    **/
+    maxHeight: 0,
+    /**
+        If text width is higher than maxWidth value, text will be scaled down to fit maxWidth. 0 to disable.
+        @property {Number} maxWidth
+        @default 0
+    **/
+    maxWidth: 0,
+    /**
         Current text value.
         @property {String} text
     **/
@@ -335,6 +347,7 @@ game.createClass('Text', 'Container', {
         var y = 0;
         var curLine = 0;
         var curWord = 0;
+        var prevChar = 0;
 
         if (this.align === 'center') x = width / 2 - this._lines[0].width / 2;
         if (this.align === 'right') x = width - this._lines[0].width;
@@ -344,6 +357,7 @@ game.createClass('Text', 'Container', {
 
             // End of line
             if (!line.words[curWord]) {
+                if (line.words.length === 0) y += this.fontClass.lineHeight; // Empty line
                 curLine++;
                 if (!this._lines[curLine]) curLine--;
                 curWord = 0;
@@ -362,7 +376,7 @@ game.createClass('Text', 'Container', {
                 // Only add space if not beginning of line
                 if (x > 0) {
                     x += this.fontClass.spaceWidth;
-                    curWord++;
+                    if (prevChar !== 32) curWord++;
                 }
                 curWord++;
             }
@@ -374,8 +388,10 @@ game.createClass('Text', 'Container', {
                 curWord++;
             }
 
+            prevChar = charCode;
+
             var charObj = this.fontClass.chars[charCode];
-            if (!charObj) continue;
+            if (!charObj || charCode === 10) continue;
 
             var texture = charObj.texture;
             if (i === 0) x -= charObj.xoffset;
@@ -389,6 +405,19 @@ game.createClass('Text', 'Container', {
         }
 
         this.updateTransform();
+
+        if (!this.maxWidth && !this.maxHeight) return;
+
+        var scale = 1;
+
+        if (this.maxWidth && this.width > this.maxWidth) {
+            scale = this.maxWidth / this.width;
+        }
+        if (this.maxHeight && this.height > this.maxHeight) {
+            scale = this.maxHeight / this.height;
+        }
+
+        this.scale.set(scale);
     }
 });
 
@@ -415,6 +444,12 @@ game.createClass('SystemText', 'Container', {
         @default left
     **/
     align: 'left',
+    /**
+        Baseline alignment.
+        @property {String} baseline
+        @default alphabetic
+    **/
+    baseline: 'alphabetic',
     /**
         Color of the text.
         @property {String} color
@@ -450,8 +485,9 @@ game.createClass('SystemText', 'Container', {
         context.globalAlpha = this._worldAlpha;
         context.setTransform(wt.a, wt.b, wt.c, wt.d, wt.tx * game.scale, (wt.ty + this.size) * game.scale);
         context.fillStyle = this.color;
-        context.font = this.size * game.scale * game.scale + 'px ' + this.font;
+        context.font = this.size * game.scale + 'px ' + this.font;
         context.textAlign = this.align;
+        context.textBaseline = this.baseline;
         context.fillText(this.text, 0, 0);
     }
 });

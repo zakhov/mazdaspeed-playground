@@ -159,7 +159,24 @@ game.createClass('Container', {
         @chainable
     **/
     addChild: function(child) {
+        if (!child) throw 'addChild: child undefined';
         child.parent = this;
+        return this;
+    },
+    
+    /**
+        @method addChildAt
+        @param {Container} child
+        @param {Number} index
+        @chainable
+    **/
+    addChildAt: function(child, index) {
+        if (!child) throw 'addChildAt: child undefined';
+        this.addChild(child);
+        if (index >= 0 && index < this.children.length - 1) {
+            this.children.splice(this.children.indexOf(child));
+            this.children.splice(index, 0, child);
+        }
         return this;
     },
 
@@ -167,10 +184,12 @@ game.createClass('Container', {
         Add this to container.
         @method addTo
         @param {Container} container
+        @param {Number} [index]
         @chainable
     **/
-    addTo: function(container) {
-        this.parent = container;
+    addTo: function(container, index) {
+        if (!container) throw 'addTo: child undefined';
+        container.addChildAt(this, index);
         return this;
     },
 
@@ -179,7 +198,9 @@ game.createClass('Container', {
         @chainable
     **/
     anchorCenter: function() {
-        this.anchor.set(this.width / 2, this.height / 2);
+        var width = this.width / this.scale.x;
+        var height = this.height / this.scale.y;
+        this.anchor.set(width / 2, height / 2);
         return this;
     },
 
@@ -194,24 +215,29 @@ game.createClass('Container', {
     **/
     center: function(target, offsetX, offsetY, worldPos) {
         if (!target) target = this.parent;
-        if (!target) return;
+        if (!target) throw 'center: target undefined';
 
         if (target === game.scene.stage) {
             var x = game.width / 2;
             var y = game.height / 2;
+            x += this.anchor.x * this.scale.x;
+            y += this.anchor.y * this.scale.y;
         }
         else {
+            target.updateTransform();
             var tb = target._getBounds();
-            var x = tb.width / 2;
-            var y = tb.height / 2;
             if (worldPos) {
-                x += tb.x;
-                y += tb.y;
+                var x = tb.x + tb.width / 2;
+                var y = tb.y + tb.height / 2;
             }
+            else {
+                var x = -target.anchor.x + tb.width / target.scale.x / 2;
+                var y = -target.anchor.y + tb.height / target.scale.y / 2;
+            }
+            x += this.anchor.x * this.scale.x;
+            y += this.anchor.y * this.scale.y;
         }
         var bounds = this._getBounds();
-        x += this.anchor.x * this.scale.x;
-        y += this.anchor.y * this.scale.y;
         x -= bounds.width * this.scale.x / 2;
         y -= bounds.height * this.scale.y / 2;
         offsetX = offsetX || 0;
@@ -225,28 +251,77 @@ game.createClass('Container', {
         @param {Number} x
         @param {Number} y
         @param {Number} id
-        @param {MouseEvent|TouchEvent} event
+        @param {InputEvent} event
     **/
     click: function() {},
 
     /**
-        Test if container's bounds are overlapping target's bounds.
+        Hit test container's hitArea against target's hitArea or target vector.
         @method hitTest
-        @param {Container} target
+        @param {Container|Vector} target
         @return {Boolean}
     **/
     hitTest: function(target) {
-        if (!target) return false;
+        if (!target) throw 'hitTest: target undefined';
 
-        var a = this._getBounds();
-        var b = target._getBounds();
+        var aBounds = this._getBounds();
+        var aHitArea = this.hitArea;
 
-        return !(
-            a.y + a.height / 2 <= b.y - b.height / 2 ||
-            a.y - a.height / 2 >= b.y + b.height / 2 ||
-            a.x - a.width / 2 >= b.x + b.width / 2 ||
-            a.x + a.width / 2 <= b.x - b.width / 2
-        );
+        if (target instanceof game.Vector) {
+            var x = aBounds.x + this.anchor.x + aHitArea.x;
+            var y = aBounds.y + this.anchor.y + aHitArea.y;
+            if (aHitArea.width) {
+                // Rectangle
+                return (
+                    target.x >= x &&
+                    target.x <= x + aHitArea.width &&
+                    target.y >= y &&
+                    target.y <= y + aHitArea.height
+                );
+            }
+            else {
+                // Circle
+                var tx = x - target.x;
+                var ty = y - target.y;
+                var dist = Math.sqrt(tx * tx + ty * ty);
+                return (aHitArea.radius > dist);
+            }
+        }
+
+        var bBounds = target._getBounds();
+        var bHitArea = target.hitArea;
+        
+        if (aHitArea.width && bHitArea.width) {
+            // Rectangle vs Rectangle
+            var x1 = aBounds.x + this.anchor.x + aHitArea.x + aHitArea.width / 2;
+            var y1 = aBounds.y + this.anchor.y + aHitArea.y + aHitArea.height / 2;
+            var x2 = bBounds.x + target.anchor.x + bHitArea.x + bHitArea.width / 2;
+            var y2 = bBounds.y + target.anchor.y + bHitArea.y + bHitArea.height / 2;
+            
+            return !(
+                y1 + aHitArea.height / 2 <= y2 - bHitArea.height / 2 ||
+                y1 - aHitArea.height / 2 >= y2 + bHitArea.height / 2 ||
+                x1 - aHitArea.width / 2 >= x2 + bHitArea.width / 2 ||
+                x1 + aHitArea.width / 2 <= x2 - bHitArea.width / 2
+            );
+        }
+        else if (aHitArea.radius && bHitArea.radius) {
+            // Circle vs Circle
+            var x1 = aBounds.x + this.anchor.x + aHitArea.x;
+            var y1 = aBounds.y + this.anchor.y + aHitArea.y;
+            var x2 = bBounds.x + target.anchor.x + bHitArea.x;
+            var y2 = bBounds.y + target.anchor.y + bHitArea.y;
+            var x = x1 - x2;
+            var y = y1 - y2;
+            var dist = Math.sqrt(x * x + y * y);
+            return (aHitArea.radius + bHitArea.radius > dist);
+        }
+        else if (aHitArea.width && bHitArea.radius) {
+            // Rectangle vs Circle
+        }
+        else if (aHitArea.radius && bHitArea.width) {
+            // Circle vs Rectangle
+        }
     },
 
     /**
@@ -254,7 +329,7 @@ game.createClass('Container', {
         @param {Number} x
         @param {Number} y
         @param {Number} id
-        @param {MouseEvent|TouchEvent} event
+        @param {InputEvent} event
         @return {Boolean} Return true, to skip to next object.
     **/
     mousedown: function() {},
@@ -264,7 +339,7 @@ game.createClass('Container', {
         @param {Number} x
         @param {Number} y
         @param {Number} id
-        @param {MouseEvent|TouchEvent} event
+        @param {InputEvent} event
         @return {Boolean} Return true, to skip to next object.
     **/
     mousemove: function() {},
@@ -274,7 +349,7 @@ game.createClass('Container', {
         @param {Number} x
         @param {Number} y
         @param {Number} id
-        @param {MouseEvent|TouchEvent} event
+        @param {InputEvent} event
     **/
     mouseout: function() {},
 
@@ -283,7 +358,7 @@ game.createClass('Container', {
         @param {Number} x
         @param {Number} y
         @param {Number} id
-        @param {MouseEvent|TouchEvent} event
+        @param {InputEvent} event
     **/
     mouseover: function() {},
 
@@ -292,7 +367,7 @@ game.createClass('Container', {
         @param {Number} x
         @param {Number} y
         @param {Number} id
-        @param {MouseEvent|TouchEvent} event
+        @param {InputEvent} event
         @return {Boolean} Return true, to skip to next object.
     **/
     mouseup: function() {},
@@ -302,9 +377,23 @@ game.createClass('Container', {
         @param {Number} x
         @param {Number} y
         @param {Number} id
-        @param {MouseEvent|TouchEvent} event
+        @param {InputEvent} event
     **/
     mouseupoutside: function() {},
+
+    /**
+        Check if container is on the screen.
+        @method onScreen
+        @return {Boolean} Return true, if on the screen.
+    **/
+    onScreen: function() {
+        var bounds = this._getBounds();
+        if (bounds.x + bounds.width < 0) return false;
+        if (bounds.x > game.width) return false;
+        if (bounds.y + bounds.height < 0) return false;
+        if (bounds.y > game.height) return false;
+        return true;
+    },
 
     /**
         Remove this from it's parent.
@@ -335,6 +424,7 @@ game.createClass('Container', {
         @chainable
     **/
     removeChild: function(child) {
+        if (!child) throw 'removeChild: child undefined';
         var index = this.children.indexOf(child);
         if (index === -1) return;
         this.children.splice(index, 1);
@@ -348,19 +438,20 @@ game.createClass('Container', {
     },
 
     /**
-        Swap container position with this container.
+        Swap container drawing position with this container.
         @method swap
         @param {Container} container
         @chainable
     **/
     swap: function(container) {
+        if (!container) throw 'swap: container undefined';
         if (!this.parent) return;
         this.parent.swapChildren(this, container);
         return this;
     },
 
     /**
-        Swap position of two childrens.
+        Swap drawing position of two childrens.
         @method swapChildren
         @param {Container} child
         @param {Container} child2
@@ -375,6 +466,50 @@ game.createClass('Container', {
 
         this.children[index1] = child2;
         this.children[index2] = child;
+    },
+    
+    /**
+        Move container to first children.
+        @method toBottom
+    **/
+    toBottom: function() {
+        if (!this.parent) return;
+        var parent = this.parent;
+        this.remove();
+        this.addTo(parent, 0);
+    },
+    
+    /**
+        Move container to last children.
+        @method toTop
+    **/
+    toTop: function() {
+        if (!this.parent) return;
+        var parent = this.parent;
+        this.remove();
+        this.addTo(parent);
+    },
+
+    /**
+        Get current world position
+        @method toWorldPosition
+        @param {Vector} [vector] Vector to set world position
+        @param {Boolean} [local] Convert world position to local position
+        @return {Vector} Returns new Vector, if vector parameter not defined
+    **/
+    toWorldPosition: function(vector, local) {
+        if (this._lastTransformUpdate !== game.Timer.time) this._updateParentTransform();
+
+        var x = local ? -this.parent._worldTransform.tx + this.position.x : this._worldTransform.tx;
+        var y = local ? -this.parent._worldTransform.ty + this.position.y : this._worldTransform.ty;
+
+        if (!local) {
+            x += this.anchor.x;
+            y += this.anchor.y;
+        }
+
+        if (vector) vector.set(x, y);
+        else return new game.Vector(x, y);
     },
 
     /**
@@ -395,12 +530,20 @@ game.createClass('Container', {
 
         var ax = this.anchor.x;
         var ay = this.anchor.y;
+
         lt.a = this._cosCache * this.scale.x;
         lt.b = this._sinCache * this.scale.x;
         lt.c = -this._sinCache * this.scale.y;
         lt.d = this._cosCache * this.scale.y;
         lt.tx = this.position.x - (ax * lt.a + ay * lt.c);
         lt.ty = this.position.y - (ax * lt.b + ay * lt.d);
+
+        if (this.parent.texture) {
+            var pax = this.parent.anchor.x;
+            var pay = this.parent.anchor.y;
+            lt.tx += pax;
+            lt.ty += pay;
+        }
 
         wt.a = lt.a * pt.a + lt.b * pt.c;
         wt.b = lt.a * pt.b + lt.b * pt.d;
@@ -438,9 +581,11 @@ game.createClass('Container', {
     _generateCachedSprite: function() {
         this.updateTransform();
 
-        var canvas = document.createElement('canvas');
-        var context = canvas.getContext('2d');
+        var canvas = game.Container._canvas;
+        var context = game.Container._context;
         var bounds = this._getBounds();
+
+        if (bounds.width === 0 || bounds.height === 0) return;
 
         canvas.width = (bounds.width / this.scale.x) * game.scale;
         canvas.height = (bounds.height / this.scale.y) * game.scale;
@@ -450,8 +595,10 @@ game.createClass('Container', {
         
         this._renderCanvas(context);
         this._renderChildren(context);
-
-        var texture = game.Texture.fromCanvas(canvas);
+        
+        var texture = game.Texture.fromImage(canvas.toDataURL());
+        texture.width = canvas.width;
+        texture.height = canvas.height;
         var sprite = new game.Sprite(texture);
         sprite._parent = this;
         
@@ -597,6 +744,30 @@ game.createClass('Container', {
             child._render(context);
         }
     },
+    
+    /**
+        @method _renderToContext
+        @param {CanvasRenderingContext2D} context
+        @param {Number} [x]
+        @param {Number} [y]
+        @private
+    **/
+    _renderToContext: function(context, x, y) {
+        this.updateTransform();
+        
+        var bounds = this._getBounds();
+
+        if (bounds.width === 0 || bounds.height === 0) return false;
+
+        this._worldTransform.reset();
+        this._worldTransform.tx = x || 0;
+        this._worldTransform.ty = y || 0;
+        this._updateChildTransform();
+        
+        this._renderCanvas(context);
+        this._renderChildren(context);
+        return true;
+    },
 
     /**
         @method _setStageReference
@@ -634,6 +805,24 @@ game.createClass('Container', {
         else this.updateTransform();
     }
 });
+
+game.addAttributes('Container', {
+    /**
+        @attribute {HTMLCanvasElement} _canvas
+        @private
+    **/
+    _canvas: null,
+    /**
+        @attribute {CanvasRenderingContext2D} _context
+        @private
+    **/
+    _context: null
+});
+
+if (typeof document !== 'undefined') {
+    game.Container._canvas = document.createElement('canvas');
+    game.Container._context = game.Container._canvas.getContext('2d');
+}
 
 game.defineProperties('Container', {
     /**

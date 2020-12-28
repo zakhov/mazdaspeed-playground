@@ -87,14 +87,18 @@ game.createClass('Body', {
         @private
     **/
     _collisionGroup: 0,
-
-    init: function(properties) {
+    
+    staticInit: function() {
         this.force = new game.Vector();
         this.position = new game.Vector();
         this.velocity = new game.Vector();
         this.velocityLimit = new game.Vector(980, 980);
         this.last = new game.Vector();
+    },
+
+    init: function(properties) {
         game.merge(this, properties);
+        return true;
     },
 
     /**
@@ -172,21 +176,25 @@ game.createClass('Body', {
     },
 
     /**
-        @method _update
-        @private
+        Update body position and velocity.
+        @method update
+        @param {Number} [delta]
     **/
-    _update: function() {
+    update: function(delta) {
+        delta = delta || game.delta;
         this.last.copy(this.position);
 
         if (this.static) return;
-
-        this.velocity.x += this.world.gravity.x * this.mass * game.delta;
-        this.velocity.y += this.world.gravity.y * this.mass * game.delta;
-        this.velocity.x += this.force.x * game.delta;
-        this.velocity.y += this.force.y * game.delta;
+        
+        if (this.world) {
+            this.velocity.x += this.world.gravity.x * this.mass * delta;
+            this.velocity.y += this.world.gravity.y * this.mass * delta;
+        }
+        this.velocity.x += this.force.x * delta;
+        this.velocity.y += this.force.y * delta;
 
         if (this.damping > 0 && this.damping < 1) {
-            var damping = Math.pow(1 - this.damping, game.delta);
+            var damping = Math.pow(1 - this.damping, delta);
             this.velocity.x *= damping;
             this.velocity.y *= damping;
         }
@@ -200,8 +208,8 @@ game.createClass('Body', {
             if (this.velocity.y < -this.velocityLimit.y) this.velocity.y = -this.velocityLimit.y;
         }
 
-        this.position.x += this.velocity.x * game.delta;
-        this.position.y += this.velocity.y * game.delta;
+        this.position.x += this.velocity.x * delta;
+        this.position.y += this.velocity.y * delta;
     }
 });
 
@@ -232,6 +240,7 @@ game.defineProperties('Body', {
     @constructor
     @param {Number} [x] Gravity x
     @param {Number} [y] Gravity y
+    @param {Boolean} [manualUpdate] Don't update physics automatically
 **/
 game.createClass('Physics', {
     /**
@@ -251,10 +260,11 @@ game.createClass('Physics', {
     **/
     _collisionGroups: {},
 
-    staticInit: function(x, y) {
+    staticInit: function(x, y, manualUpdate) {
         x = typeof x === 'number' ? x : 0;
         y = typeof y === 'number' ? y : 980;
         this.gravity = new game.Vector(x, y);
+        if (game.scene && !manualUpdate) game.scene.physics.push(this);
     },
 
     /**
@@ -267,6 +277,37 @@ game.createClass('Physics', {
         body._remove = false;
         this.bodies.push(body);
         this._addBodyCollision(body);
+    },
+
+    /**
+        Perform collision for body.
+        @method collide
+        @param {Body} body
+    **/
+    collide: function(body) {
+        var g, i, b, group;
+
+        for (g = 0; g < body.collideAgainst.length; g++) {
+            body._collides.length = 0;
+            group = this._collisionGroups[body.collideAgainst[g]];
+            
+            if (!group) continue;
+
+            for (i = group.length - 1; i >= 0; i--) {
+                if (!group) break;
+                b = group[i];
+                if (body !== b) {
+                    if (this.hitTest(body, b)) {
+                        body._collides.push(b);
+                    }
+                }
+            }
+            for (i = body._collides.length - 1; i >= 0; i--) {
+                if (this.hitResponse(body, body._collides[i])) {
+                    body.afterCollide(body._collides[i]);
+                }
+            }
+        }
     },
 
     /**
@@ -379,37 +420,6 @@ game.createClass('Physics', {
     },
 
     /**
-        @method _collide
-        @param {Body} body
-        @private
-    **/
-    _collide: function(body) {
-        var g, i, b, group;
-
-        for (g = 0; g < body.collideAgainst.length; g++) {
-            body._collides.length = 0;
-            group = this._collisionGroups[body.collideAgainst[g]];
-            
-            if (!group) continue;
-
-            for (i = group.length - 1; i >= 0; i--) {
-                if (!group) break;
-                b = group[i];
-                if (body !== b) {
-                    if (this.hitTest(body, b)) {
-                        body._collides.push(b);
-                    }
-                }
-            }
-            for (i = body._collides.length - 1; i >= 0; i--) {
-                if (this.hitResponse(body, body._collides[i])) {
-                    body.afterCollide(body._collides[i]);
-                }
-            }
-        }
-    },
-
-    /**
         @method _removeBodyCollision
         @param {Body} body
         @private
@@ -433,7 +443,7 @@ game.createClass('Physics', {
                 this.bodies.splice(i, 1);
             }
             else {
-                this.bodies[i]._update();
+                this.bodies[i].update();
             }
         }
     },
@@ -450,7 +460,7 @@ game.createClass('Physics', {
             }
             for (j = 0; j < this._collisionGroups[i].length; j++) {
                 if (this._collisionGroups[i][j] && this._collisionGroups[i][j].collideAgainst.length > 0) {
-                    this._collide(this._collisionGroups[i][j]);
+                    this.collide(this._collisionGroups[i][j]);
                 }
             }
         }
@@ -488,10 +498,15 @@ game.createClass('PhysicsSprite', 'Sprite', {
         this.position = this.body.position;
     },
 
-    addTo: function(container, world) {
-        world = world || game.scene.world;
-        if (!world) throw 'Physics world not found';
-        this.body.addTo(world);
+    /**
+        @method addTo
+        @param {Container} container
+        @param {Physics} physics
+    **/
+    addTo: function(container, physics) {
+        physics = physics || game.scene.world;
+        if (!physics) throw 'addTo: Physics world not defined';
+        this.body.addTo(physics);
         return this.super(container);
     },
 
@@ -506,6 +521,10 @@ game.createClass('PhysicsSprite', 'Sprite', {
         return true;
     },
 
+    /**
+        Removes sprite from it's parent and also body from it's physics world.
+        @method remove
+    **/
     remove: function() {
         this.body.remove();
         return this.super();

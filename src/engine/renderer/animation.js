@@ -81,7 +81,8 @@ game.createClass('Animation', 'Sprite', {
 
     staticInit: function(textures) {
         this.currentAnim = this;
-        this.textures = this.textures || textures;
+        this.textures = this.textures || textures;
+        if (!this.textures || this.textures.length === 0) throw 'Unable to create animation without textures';
 
         if (typeof this.textures === 'string' && this.textures.indexOf('atlas') !== -1) {
             var json = game.getJSON(this.textures);
@@ -106,20 +107,31 @@ game.createClass('Animation', 'Sprite', {
         Add new animation.
         @method addAnim
         @param {String} name Name of animation.
-        @param {Array|Number} frames List of invidual frame indexes or start frame index.
+        @param {Array|Number|String} frames List of invidual frame indexes | List of frame names | Start frame index | Name that each frame starts with.
         @param {Number|Object} [frameCount] Number of frames or animation properties.
         @param {Object} [props] Animation properties.
         @chainable
     **/
     addAnim: function(name, frames, frameCount, props) {
-        if (!name || typeof frames === undefined) return;
+        if (!name || typeof frames === undefined) return;
 
         if (typeof frameCount === 'object') props = frameCount;
 
         var textures = [];
-        if (frames.length) {
+        if (typeof frames === 'string') {
+            for (var i = 0; i < this.textures.length; i++) {
+                var texture = this.textures[i];
+                if (texture.indexOf(frames) === 0) textures.push(texture);
+            }
+            if (textures.length === 0) throw 'No textures found starting with ' + frames;
+        }
+        else if (frames.length) {
             for (var i = 0; i < frames.length; i++) {
-                textures[i] = this.textures[frames[i]];
+                if (typeof frames[i] === 'number') textures[i] = this.textures[frames[i]];
+                else if (typeof frames[i] === 'string') {
+                    var index = this.textures.indexOf(frames[i]);
+                    if (index !== -1) textures[i] = this.textures[index];
+                }
             }
         }
         else if (typeof frames === 'number' && typeof frameCount === 'number') {
@@ -142,10 +154,14 @@ game.createClass('Animation', 'Sprite', {
     /**
         Jump to specific frame.
         @method gotoFrame
+        @param {String|Number} name Name of animation or frame index
         @param {Number} frame Frame index
         @chainable
     **/
-    gotoFrame: function(frame) {
+    gotoFrame: function(name, frame) {
+        if (typeof name === 'string') this.currentAnim = this.anims[name] || this;
+        if (typeof name === 'number') frame = name;
+        
         if (!this.currentAnim.textures) throw 'No textures found for animation';
         if (!this.currentAnim.textures[frame]) return;
         this.currentFrame = frame;
@@ -177,11 +193,15 @@ game.createClass('Animation', 'Sprite', {
     /**
         Stop animation.
         @method stop
+        @param {String|Number} [name] Name of animation or frame index
         @param {Number} [frame] Frame index
         @chainable
     **/
-    stop: function(frame) {
+    stop: function(name, frame) {
         this.playing = false;
+        this.currentAnim = this.anims[name] || this;
+        
+        if (typeof name === 'number') frame = name;
         if (typeof frame === 'number') this.gotoFrame(frame);
         return this;
     },
@@ -196,12 +216,13 @@ game.createClass('Animation', 'Sprite', {
         @private
     **/
     _updateAnimation: function() {
+        if (game.scene.paused && game.scene._pausedAnims.indexOf(this) !== -1) return;
         var anim = this.currentAnim;
         if (!anim.textures) throw 'No textures found for animation';
         this._frameTime += anim.speed * game.delta;
 
         if (this._frameTime >= 1) {
-            this._frameTime = 0;
+            this._frameTime = this._frameTime % 1;
 
             if (anim.random && anim.textures.length > 1) {
                 var nextFrame = this.currentFrame;
@@ -269,6 +290,9 @@ game.addAttributes('Animation', {
         if (textures.length > 0) {
             textures.sort(game.compare);
             return new game.Animation(textures);
+        }
+        else {
+            throw 'No textures found for ' + name;
         }
     }
 });

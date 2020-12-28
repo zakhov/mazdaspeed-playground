@@ -4,6 +4,9 @@
 game.module(
     'engine.input'
 )
+.require(
+    'engine.geometry'
+)
 .body(function() {
 
 /**
@@ -29,7 +32,7 @@ game.createClass('Input', {
     **/
     mouse: null,
     /**
-        List of current touch identifiers.
+        List of InputEvent objects for current touches.
         @property {Array} touches
     **/
     touches: [],
@@ -39,25 +42,10 @@ game.createClass('Input', {
     **/
     _currentCursor: null,
     /**
-        @property {Container} _mouseDownItem
+        @property {InputEvent} _mouseInput
         @private
     **/
-    _mouseDownItem: null,
-    /**
-        @property {Number} _mouseDownTime
-        @private
-    **/
-    _mouseDownTime: null,
-    /**
-        @property {Container} _mouseMoveItem
-        @private
-    **/
-    _mouseMoveItem: null,
-    /**
-        @property {Container} _mouseUpItem
-        @private
-    **/
-    _mouseUpItem: null,
+    _mouseInput: null,
     /**
         @property {Boolean} _needUpdate
         @default false
@@ -67,30 +55,41 @@ game.createClass('Input', {
 
     init: function(canvas) {
         this.mouse = new game.Vector();
+        this._touchstartFunc = this._touchstart.bind(this);
+        this._touchmoveFunc = this._touchmove.bind(this);
+        this._touchendFunc = this._touchend.bind(this);
+        this._mousedownFunc = this._mousedown.bind(this);
+        this._mousemoveFunc = this._mousemove.bind(this);
+        this._mouseoutFunc = this._mouseout.bind(this);
+        this._mouseupFunc = this._mouseup.bind(this);
         var target = game.device.cocoonCanvasPlus ? window : canvas;
-        target.addEventListener('touchstart', this._touchstart.bind(this));
-        target.addEventListener('touchmove', this._touchmove.bind(this));
-        target.addEventListener('touchend', this._touchend.bind(this));
-        target.addEventListener('touchcancel', this._touchend.bind(this));
-        target.addEventListener('mousedown', this._mousedown.bind(this));
-        target.addEventListener('mousemove', this._mousemove.bind(this));
-        target.addEventListener('mouseout', this._mouseout.bind(this));
-        window.addEventListener('blur', this._mouseout.bind(this));
-        window.addEventListener('mouseup', this._mouseup.bind(this));
-        if (game.device.mobile) window.addEventListener('devicemotion', this._devicemotion.bind(this));
+        target.addEventListener('touchstart', this._touchstartFunc);
+        target.addEventListener('touchmove', this._touchmoveFunc);
+        target.addEventListener('touchend', this._touchendFunc);
+        target.addEventListener('touchcancel', this._touchendFunc);
+        target.addEventListener('mousedown', this._mousedownFunc);
+        target.addEventListener('mousemove', this._mousemoveFunc);
+        target.addEventListener('mouseout', this._mouseoutFunc);
+        window.addEventListener('blur', this._mouseoutFunc);
+        window.addEventListener('mouseup', this._mouseupFunc);
+        if (game.device.mobile) {
+            this._devicemotionFunc = this._devicemotion.bind(this);
+            window.addEventListener('devicemotion', this._devicemotionFunc);
+        }
+        this._mouseInput = new game.InputEvent();
     },
 
     /**
         @method _calculateXY
-        @param {MouseEvent|TouchEvent} event
+        @param {InputEvent} input
         @private
     **/
-    _calculateXY: function(event) {
+    _calculateXY: function(input) {
         var rect = game.renderer.canvas.getBoundingClientRect();
-        var x = (event.clientX - rect.left) * (game.renderer.canvas.width / rect.width);
-        var y = (event.clientY - rect.top) * (game.renderer.canvas.height / rect.height);
-        event.canvasX = x / game.scale;
-        event.canvasY = y / game.scale;
+        var x = (input.event.clientX - rect.left) * (game.renderer.canvas.width / rect.width);
+        var y = (input.event.clientY - rect.top) * (game.renderer.canvas.height / rect.height);
+        input.position.x = x / game.scale;
+        input.position.y = y / game.scale;
     },
 
     /**
@@ -100,6 +99,18 @@ game.createClass('Input', {
     **/
     _devicemotion: function(event) {
         this.motion = event;
+    },
+    
+    /**
+        @method _getTouchById
+        @param {Number} id
+        @return {Touch}
+        @private
+    **/
+    _getTouchById: function(id) {
+        for (var i = 0; i < this.touches.length; i++) {
+            if (this.touches[i].id === id) return this.touches[i];
+        }
     },
 
     /**
@@ -115,8 +126,8 @@ game.createClass('Input', {
         if (hitArea) {
             var wt = container._worldTransform;
             var bounds = container._getBounds();
-            var tx = (bounds.x || wt.tx);
-            var ty = (bounds.y || wt.ty);
+            var tx = typeof bounds.x === 'number' ? bounds.x : wt.tx;
+            var ty = typeof bounds.y === 'number' ? bounds.y : wt.ty;
             var scaleX = Math.abs(wt.a / container._cosCache);
             var scaleY = Math.abs(wt.d / container._cosCache);
             var aPercX = (container.anchor.x / container.width) || 0;
@@ -126,9 +137,7 @@ game.createClass('Input', {
             hx += bounds.width * scaleX * aPercX;
             hy += bounds.height * scaleY * aPercY;
             if (hitArea.radius) {
-                var r = hitArea.radius / 2;
-                hx += r;
-                hy += r;
+                var r = hitArea.radius * game.scale;
                 var a = x - hx;
                 var b = y - hy;
                 var c = Math.sqrt(a * a + b * b);
@@ -147,99 +156,136 @@ game.createClass('Input', {
 
         return (x >= hx && y >= hy && x <= hx + hw && y <= hy + hh);
     },
+    
+    /**
+        @method _inputdown
+        @param {InputEvent} input
+        @private
+    **/
+    _inputdown: function(input) {
+        if (game.audio && game.audio._context && game.audio._context.state === 'suspended') game.audio._context.resume();
+        if (game.Input.focusOnMouseDown) {
+            window.focus();
+            game.renderer.canvas.focus();
+        }
+        if (!game.scene || game.system.paused) return;
+
+        this._preventDefault(input.event);
+        this._calculateXY(input);
+        this.mouse.copy(input.position);
+        
+        input._downItem = this._processEvent('mousedown', input);
+        input._downTime = game.Timer.time;
+
+        game.scene._mousedown(input.position.x, input.position.y, input.id, input);
+    },
 
     /**
+        @method _inputmove
+        @param {InputEvent} input
+        @private
+    **/
+    _inputmove: function(input) {
+        if (!game.scene || game.system.paused) return;
+
+        this._preventDefault(input.event);
+        this._calculateXY(input);
+        this.mouse.copy(input.position);
+
+        var moveItem = this._processEvent('mousemove', input);
+        
+        this._updateCursor(moveItem);
+
+        if (input._moveItem && input._moveItem !== moveItem) {
+            input._moveItem.mouseout(input.position.x, input.position.y, input.id, input);
+        }
+        if (moveItem && input._moveItem !== moveItem) {
+            moveItem.mouseover(input.position.x, input.position.y, input.id, input);
+        }
+        input._moveItem = moveItem;
+
+        game.scene._mousemove(input.position.x, input.position.y, input.id, input);
+    },
+    
+    /**
+        @method _inputup
+        @param {InputEvent} input
+        @private
+    **/
+    _inputup: function(input) {
+        if (!game.scene || game.system.paused) return;
+
+        this._preventDefault(input.event);
+        this._calculateXY(input);
+        if (input.position.x < 0 || input.position.x > game.width || input.position.y < 0 || input.position.y > game.height) {
+            if (input._downItem) {
+                input._downItem.mouseupoutside(input.position.x, input.position.y, input.id, input);
+            }
+            game.scene._mouseup(input.position.x, input.position.y, input.id, input);
+            return;
+        }
+        this.mouse.copy(input.position);
+
+        input._upItem = this._processEvent('mouseup', input);
+        if (input._downItem && input._downItem === input._upItem) {
+            var time = game.Timer.time - input._downTime;
+            if (game.Input.clickTimeout === 0 || time < game.Input.clickTimeout) {
+                input._downItem.click(input.position.x, input.position.y, input.id, input);
+            }
+        }
+
+        if (input._downItem && input._downItem !== input._upItem) {
+            input._downItem.mouseupoutside(input.position.x, input.position.y, input.id, input);
+        }
+
+        game.scene._mouseup(input.position.x, input.position.y, input.id, input);
+    },
+    
+    /**
         @method _mousedown
-        @param {MouseEvent|TouchEvent} event
+        @param {MouseEvent} event
         @private
     **/
     _mousedown: function(event) {
-        if (game.Input.focusOnMouseDown) window.focus();
-        if (!game.scene) return;
-
-        this._preventDefault(event);
-        this._calculateXY(event);
-        this.mouse.set(event.canvasX, event.canvasY);
-        
-        this._mouseDownItem = this._processEvent('mousedown', event);
-        this._mouseDownTime = game.Timer.time;
-
-        game.scene._mousedown(event.canvasX, event.canvasY, event.identifier, event);
+        this._mouseInput.event = event;
+        this._inputdown(this._mouseInput);
     },
-
+    
     /**
         @method _mousemove
-        @param {MouseEvent|TouchEvent} event
+        @param {MouseEvent} event
         @private
     **/
     _mousemove: function(event) {
-        if (!game.scene) return;
-
-        this._preventDefault(event);
-        this._calculateXY(event);
-        this.mouse.set(event.canvasX, event.canvasY);
-
-        var _mouseMoveItem = this._processEvent('mousemove', event);
-        
-        this._updateCursor(_mouseMoveItem);
-
-        if (this._mouseMoveItem && this._mouseMoveItem !== _mouseMoveItem) {
-            this._mouseMoveItem.mouseout(event.canvasX, event.canvasY, event.identifier, event);
-        }
-        if (_mouseMoveItem && this._mouseMoveItem !== _mouseMoveItem) {
-            _mouseMoveItem.mouseover(event.canvasX, event.canvasY, event.identifier, event);
-        }
-        this._mouseMoveItem = _mouseMoveItem;
-
-        game.scene._mousemove(event.canvasX, event.canvasY, event.identifier, event);
+        this._mouseInput.event = event;
+        this._inputmove(this._mouseInput);
     },
-
+    
     /**
         @method _mouseout
-        @param {MouseEvent|TouchEvent} event
+        @param {MouseEvent} event
         @private
     **/
     _mouseout: function(event) {
-        if (!game.scene) return;
-
-        if (this._mouseMoveItem) this._mouseMoveItem.mouseout(event.canvasX, event.canvasY, event.identifier, event);
-        this._mouseMoveItem = null;
+        if (!game.scene || game.system.paused) return;
         
-        game.scene.mouseout(event);
-    },
+        var input = this._mouseInput;
+        input.event = event;
 
+        if (input._moveItem) input._moveItem.mouseout(input.position.x, input.position.y, input.id, input);
+        input._moveItem = null;
+        
+        game.scene.mouseout(input);
+    },
+    
     /**
         @method _mouseup
-        @param {MouseEvent|TouchEvent} event
+        @param {MouseEvent} event
         @private
     **/
     _mouseup: function(event) {
-        if (!game.scene) return;
-
-        this._preventDefault(event);
-        this._calculateXY(event);
-        if (event.canvasX < 0 || event.canvasX > game.width || event.canvasY < 0 || event.canvasY > game.height) {
-            if (this._mouseDownItem) {
-                this._mouseDownItem.mouseupoutside(event.canvasX, event.canvasY, event.identifier, event);
-            }
-            game.scene._mouseup(event.canvasX, event.canvasY, event.identifier, event);
-            return;
-        }
-        this.mouse.set(event.canvasX, event.canvasY);
-
-        this._mouseUpItem = this._processEvent('mouseup', event);
-        if (this._mouseDownItem && this._mouseDownItem === this._mouseUpItem) {
-            var time = game.Timer.time - this._mouseDownTime;
-            if (game.Input.clickTimeout === 0 || time < game.Input.clickTimeout) {
-                this._mouseDownItem.click(event.canvasX, event.canvasY, event.identifier, event);
-            }
-        }
-
-        if (this._mouseDownItem && this._mouseDownItem !== this._mouseUpItem) {
-            this._mouseDownItem.mouseupoutside(event.canvasX, event.canvasY, event.identifier, event);
-        }
-
-        game.scene._mouseup(event.canvasX, event.canvasY, event.identifier, event);
+        this._mouseInput.event = event;
+        this._inputup(this._mouseInput);
     },
 
     /**
@@ -248,27 +294,46 @@ game.createClass('Input', {
         @private
     **/
     _preventDefault: function(event) {
-        if (!event.preventDefault || !game.Input.preventDefault) return;
+        if (!event.preventDefault || !game.Input.preventDefault) return;
         event.preventDefault();
     },
 
     /**
         @method _processEvent
         @param {String} eventName
-        @param {MouseEvent|TouchEvent} event
+        @param {InputEvent} input
         @return {Object} item
         @private
     **/
-    _processEvent: function(eventName, event) {
+    _processEvent: function(eventName, input) {
         for (var i = this.items.length - 1; i >= 0; i--) {
             var item = this.items[i];
             if (!item._interactive || !item.visible) continue;
-            if (this._hitTest(item, event.canvasX, event.canvasY)) {
-                if (!item[eventName](event.canvasX, event.canvasY, event.identifier, event)) {
+            if (this._hitTest(item, input.position.x, input.position.y)) {
+                if (!item[eventName](input.position.x, input.position.y, input.id, input)) {
                     return item;
                 }
             }
         }
+    },
+    
+    /**
+        Remove all event listeners.
+        @method _remove
+        @private
+    **/
+    _remove: function() {
+        var target = game.device.cocoonCanvasPlus ? window : canvas;
+        target.removeEventListener('touchstart', this._touchstartFunc);
+        target.removeEventListener('touchmove', this._touchmoveFunc);
+        target.removeEventListener('touchend', this._touchendFunc);
+        target.removeEventListener('touchcancel', this._touchendFunc);
+        target.removeEventListener('mousedown', this._mousedownFunc);
+        target.removeEventListener('mousemove', this._mousemoveFunc);
+        target.removeEventListener('mouseout', this._mouseoutFunc);
+        window.removeEventListener('blur', this._mouseoutFunc);
+        window.removeEventListener('mouseup', this._mouseupFunc);
+        if (this._devicemotionFunc) window.removeEventListener('devicemotion', this._devicemotionFunc);
     },
 
     /**
@@ -277,9 +342,6 @@ game.createClass('Input', {
     **/
     _reset: function() {
         this.items.length = 0;
-        this._mouseDownItem = null;
-        this._mouseMoveItem = null;
-        this._mouseUpItem = null;
     },
 
     /**
@@ -290,10 +352,11 @@ game.createClass('Input', {
     _touchend: function(event) {
         this._preventDefault(event);
         for (var i = 0; i < event.changedTouches.length; i++) {
-            var touch = event.changedTouches[i];
-            if (this.touches.indexOf(touch.identifier) !== -1) {
-                this._mouseup(touch);
-                this.touches.erase(touch.identifier);
+            var touch = this._getTouchById(event.changedTouches[i].identifier);
+            if (touch) {
+                this._inputup(touch);
+                game.InputEvent.put(touch);
+                this.touches.splice(this.touches.indexOf(touch), 1);
             }
         }
     },
@@ -306,8 +369,12 @@ game.createClass('Input', {
     _touchmove: function(event) {
         this._preventDefault(event);
         for (var i = 0; i < event.changedTouches.length; i++) {
-            var touch = event.changedTouches[i];
-            if (this.touches.indexOf(touch.identifier) !== -1) this._mousemove(touch);
+            var touch = this._getTouchById(event.changedTouches[i].identifier);
+            if (touch) {
+                var touchIndex = this.touches.indexOf(touch);
+                this.touches[touchIndex].event = event.changedTouches[i];
+                this._inputmove(this.touches[touchIndex]);
+            }
         }
     },
 
@@ -317,12 +384,16 @@ game.createClass('Input', {
         @private
     **/
     _touchstart: function(event) {
+        if (game.audio && game.audio._context && game.audio._context.state === 'suspended') game.audio._context.resume();
         this._preventDefault(event);
         for (var i = 0; i < event.changedTouches.length; i++) {
             if (this.touches.length === 1 && !game.Input.multitouch) return;
-            var touch = event.changedTouches[i];
-            this.touches.push(touch.identifier);
-            this._mousedown(touch);
+            var touch = game.InputEvent.get();
+            touch.reset();
+            touch.event = event.changedTouches[i];
+            touch.id = event.changedTouches[i].identifier;
+            this.touches.push(touch);
+            this._inputdown(touch);
         }
     },
 
@@ -383,7 +454,7 @@ game.addAttributes('Input', {
     **/
     clickTimeout: 500,
     /**
-        Set focus to window in mousedown event.
+        Set focus to canvas in mousedown event.
         @attribute {Boolean} focusOnMouseDown
         @default true
     **/
@@ -403,6 +474,107 @@ game.addAttributes('Input', {
 });
 
 /**
+    Class for mouse or touch event.
+    @class InputEvent
+    @constructor
+**/
+game.createClass('InputEvent', {
+    /**
+        Identifier number for touch event.
+        @property {Number} id
+    **/
+    id: null,
+    /**
+        Current position of the event in the screen.
+        @property {Vector} position
+    **/
+    position: null,
+    /**
+        Original event.
+        @property {MouseEvent|Touch} event
+    **/
+    event: null,
+    /**
+        @property {Container} _downItem
+        @private
+    **/
+    _downItem: null,
+    /**
+        @property {Number} _downTime
+        @private
+    **/
+    _downTime: null,
+    /**
+        @property {Container} _moveItem
+        @private
+    **/
+    _moveItem: null,
+    /**
+        @property {Container} _upItem
+        @private
+    **/
+    _upItem: null,
+    
+    staticInit: function() {
+        this.position = new game.Vector();
+    },
+    
+    /**
+        Reset event values.
+        @method reset
+    **/
+    reset: function() {
+        this.id = null;
+        this.event = null;
+        this._downItem = null;
+        this._downTime = null;
+        this._moveItem = null;
+        this._upItem = null;
+    }
+});
+
+game.addAttributes('InputEvent', {
+    /**
+        Pool for input events.
+        @attribute {Array} pool
+    **/
+    pool: [],
+    /**
+        Number of objects created for the pool on startup.
+        @attribute {Number} poolCount
+        @default 20
+    **/
+    poolCount: 20,
+    
+    /**
+        Get input event from pool.
+        @method get
+        @return {InputEvent}
+        @static
+    **/
+    get: function() {
+        var event = this.pool.pop();
+        if (!event) event = new game.InputEvent();
+        return event;
+    },
+    
+    /**
+        Put input event to pool.
+        @method put
+        @param {InputEvent} event
+        @static
+    **/
+    put: function(event) {
+        this.pool.push(event);
+    }
+});
+
+for (var i = 0; i < game.InputEvent.poolCount; i++) {
+    var event = new game.InputEvent();
+    game.InputEvent.put(event);
+}
+
+/**
     Keyboard controller. Instance automatically created at `game.keyboard`
     @class Keyboard
 **/
@@ -414,9 +586,12 @@ game.createClass('Keyboard', {
     _keysDown: [],
 
     init: function() {
-        window.addEventListener('keydown', this._keydown.bind(this));
-        window.addEventListener('keyup', this._keyup.bind(this));
-        window.addEventListener('blur', this._reset.bind(this));
+        this._keydownFunc = this._keydown.bind(this);
+        this._keyupFunc = this._keyup.bind(this);
+        this._resetFunc = this._reset.bind(this);
+        window.addEventListener('keydown', this._keydownFunc);
+        window.addEventListener('keyup', this._keyupFunc);
+        window.addEventListener('blur', this._resetFunc);
     },
 
     /**
@@ -426,7 +601,7 @@ game.createClass('Keyboard', {
         @return {Boolean}
     **/
     down: function(key) {
-        return !!this._keysDown[key];
+        return !!this._keysDown[key.toUpperCase()];
     },
 
     /**
@@ -437,9 +612,13 @@ game.createClass('Keyboard', {
     _keydown: function(event) {
         if (document.activeElement !== document.body && document.activeElement !== game.renderer.canvas) return;
         if (!game.system._running) return;
+        if (game.Keyboard.preventDefault) event.preventDefault();
         var key = game.Keyboard.keys[event.keyCode];
         if (!key) key = event.keyCode;
-        if (this._keysDown[key]) return event.preventDefault();
+        if (this._keysDown[key]) {
+            event.preventDefault();
+            return;
+        }
         this._keysDown[key] = true;
         if (game.scene && game.scene.keydown) {
             var prevent = game.scene.keydown(key, this.down('SHIFT'), this.down('CTRL'), this.down('ALT'));
@@ -458,6 +637,17 @@ game.createClass('Keyboard', {
         if (!key) key = event.keyCode;
         this._keysDown[key] = false;
         if (game.scene && game.scene.keyup) game.scene.keyup(key);
+    },
+    
+    /**
+        Remove all event listeners.
+        @method _remove
+        @private
+    **/
+    _remove: function() {
+        window.removeEventListener('keydown', this._keydownFunc);
+        window.removeEventListener('keyup', this._keyupFunc);
+        window.removeEventListener('blur', this._resetFunc);
     },
 
     /**
@@ -563,10 +753,18 @@ game.addAttributes('Keyboard', {
         123: 'F12',
         186: 'SEMICOLON',
         187: 'PLUS',
+        188: 'COMMA',
         189: 'MINUS',
+        190: 'PERIOD',
         192: 'GRAVE_ACCENT',
         222: 'SINGLE_QUOTE'
-    }
+    },
+    /**
+        Should keydown event prevent default action.
+        @attribute {Boolean} preventDefault
+        @default false
+    **/
+    preventDefault: false
 });
 
 });

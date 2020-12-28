@@ -1,6 +1,9 @@
 # Ignore artifacts:
 build
 coverage
-engine
+src/engine
+src/plugin
+public
 package-lock.json
+.vscode
 
