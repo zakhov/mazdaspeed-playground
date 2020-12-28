@@ -3,6 +3,7 @@ game.module('game.main')
     .body(function () {
         game.createScene('Main', {
             init: function () {
+                this.is_vehicle_touched = false
                 this.moving_speed = 0
                 this.vehicle_scale = 0.4
                 this.sky_bg = new game.TilingSprite('assets/sky.jpg', game.width, game.height)
@@ -27,6 +28,16 @@ game.module('game.main')
 
                 this.mazdaspeed = new game.Container()
                 this.mazdaspeed.position.set(150, 480)
+
+                this.mazdaspeed.interactive = true
+                var self = this
+                this.mazdaspeed.mousedown = function () {
+                    self.is_vehicle_touched = true
+                }
+
+                this.mazdaspeed.mouseup = function () {
+                    self.is_vehicle_touched = false
+                }
 
                 this.mps_body_iso = new game.Sprite('Mazda3MPS__mainframe-iso.png')
                 this.mps_body = new game.Sprite('Mazda3MPS__mainframe.png')
@@ -57,7 +68,7 @@ game.module('game.main')
                 // this.mps_body_iso.addTo(this.stage);
             },
             update: function () {
-                if (game.keyboard.down('SPACE')) this.moving_speed += 1
+                if (game.keyboard.down('SPACE') || this.is_vehicle_touched) this.moving_speed += 1
                 else {
                     this.moving_speed -= this.moving_speed > 0 ? 1 : 0
                 }

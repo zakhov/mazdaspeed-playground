@@ -6,6 +6,7 @@ game.config = {
         scale: true,
         center: true,
         resize: false,
+        rotateScreen: false,
     },
     debug: {
         enabled: true,
