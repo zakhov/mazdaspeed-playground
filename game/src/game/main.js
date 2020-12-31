@@ -3,6 +3,7 @@ game.module('game.main')
     .body(function () {
         game.createScene('Main', {
             init: function () {
+                this.is_vehicle_iso = false
                 this.is_vehicle_touched = false
                 this.moving_speed = 0
                 this.vehicle_scale = 0.4
@@ -39,21 +40,18 @@ game.module('game.main')
                     self.is_vehicle_touched = false
                 }
 
-                this.mps_body_iso = new game.Sprite('Mazda3MPS__mainframe-iso.png')
                 this.mps_body = new game.Sprite('Mazda3MPS__mainframe.png')
                 this.mps_mask = new game.Sprite('Mazda3MPS__mask.png')
                 this.mps_ftyre = new game.Sprite('Mazda3MPS_tyre--front.png')
                 this.mps_rtyre = new game.Sprite('Mazda3MPS_tyre--rear.png')
 
                 this.mps_body.scale.x = this.mps_body.scale.y = this.vehicle_scale
-                this.mps_body_iso.scale.x = this.mps_body_iso.scale.y = this.vehicle_scale
                 this.mps_mask.scale.x = this.mps_mask.scale.y = this.vehicle_scale
                 this.mps_ftyre.scale.x = this.mps_ftyre.scale.y = this.vehicle_scale
                 this.mps_rtyre.scale.x = this.mps_rtyre.scale.y = this.vehicle_scale
 
                 this.mps_ftyre.anchor.set(110, 106)
                 this.mps_rtyre.anchor.set(110, 106)
-                this.mps_body_iso.position.set(180, 0)
                 this.mps_body.position.set(150, 0)
                 this.mps_mask.position.set(150, 0)
                 this.mps_ftyre.position.set(260, 160)
@@ -65,11 +63,45 @@ game.module('game.main')
                 this.mps_rtyre.addTo(this.mazdaspeed)
 
                 this.mazdaspeed.addTo(this.stage)
-                // this.mps_body_iso.addTo(this.stage);
+            },
+            toggleISO: function (is_iso) {
+                this.is_vehicle_iso = is_iso
+                if (is_iso) {
+                    this.mps_body.setTexture('Mazda3MPS__mainframe-iso.png')
+                    this.mps_ftyre.alpha = 0
+                    this.mps_mask.alpha = 0
+                    this.mps_rtyre.alpha = 0
+                    this.mps_body.position.set(180, -12)
+                } else {
+                    this.mps_body.setTexture('Mazda3MPS__mainframe.png')
+                    this.mps_ftyre.alpha = 1
+                    this.mps_mask.alpha = 1
+                    this.mps_rtyre.alpha = 1
+                    this.mps_body.position.set(150, 0)
+                }
+            },
+            keydown: function (key) {
+                if (key === 'V') {
+                    if (this.moving_speed !== 0) {
+                        return
+                    }
+                    this.toggleISO((this.is_vehicle_iso = !this.is_vehicle_iso))
+                }
             },
             update: function () {
-                if (game.keyboard.down('SPACE') || this.is_vehicle_touched) this.moving_speed += 1.5
-                else {
+                if (game.keyboard.down('left') || this.is_vehicle_touched) {
+                    this.toggleISO(false)
+                    this.moving_speed += 1.5
+                } else if (game.keyboard.down('right')) {
+                    this.toggleISO(false)
+                    this.moving_speed -= 1.5
+                } else if (game.keyboard.down('SPACE')) {
+                    if (this.moving_speed < 0) {
+                        this.moving_speed += this.moving_speed === 0 ? 0 : 1.5
+                    } else {
+                        this.moving_speed -= this.moving_speed === 0 ? 0 : 1.5
+                    }
+                } else {
                     this.moving_speed -= this.moving_speed > 0 ? 0.5 : 0
                 }
                 this.mountain_tile.tilePosition.x += this.moving_speed * 0.97 * game.delta
