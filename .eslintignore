@@ -1,9 +1,9 @@
 # Ignore artifacts:
 build
+scripts
 coverage
-src/engine
-src/plugin
+game/src/engine
+game/src/plugin
 public
 package-lock.json
 .vscode
-

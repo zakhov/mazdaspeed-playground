@@ -1,12 +1,12 @@
 # Ignore artifacts:
 build
 coverage
-src/engine
-src/plugin
+scripts
+game/src/engine
+game/src/plugin
 public
 package-lock.json
 .eslintignore
 .eslintrc.json
 .prettierrc.json
-index.html
 .vscode
