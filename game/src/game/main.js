@@ -3,6 +3,7 @@ game.module('game.main')
     .body(function () {
         game.createScene('Main', {
             init: function () {
+                this.max_speed = 280
                 this.is_vehicle_iso = false
                 this.is_vehicle_touched = false
                 this.moving_speed = 0
@@ -33,11 +34,11 @@ game.module('game.main')
                 this.mazdaspeed.interactive = true
                 var self = this
                 this.mazdaspeed.mousedown = function () {
-                    self.is_vehicle_touched = true
+                    if (game.device.mobile) self.is_vehicle_touched = true
                 }
 
                 this.mazdaspeed.mouseup = function () {
-                    self.is_vehicle_touched = false
+                    if (game.device.mobile) self.is_vehicle_touched = false
                 }
 
                 this.mps_body = new game.Sprite('Mazda3MPS__mainframe.png')
@@ -71,7 +72,7 @@ game.module('game.main')
                     this.mps_ftyre.alpha = 0
                     this.mps_mask.alpha = 0
                     this.mps_rtyre.alpha = 0
-                    this.mps_body.position.set(180, -12)
+                    this.mps_body.position.set(190, -12)
                 } else {
                     this.mps_body.setTexture('Mazda3MPS__mainframe.png')
                     this.mps_ftyre.alpha = 1
@@ -91,10 +92,11 @@ game.module('game.main')
             update: function () {
                 if (game.keyboard.down('left') || this.is_vehicle_touched) {
                     this.toggleISO(false)
-                    this.moving_speed += 1.5
+                    var throttling_speed = this.moving_speed >= this.max_speed ? 0 : 1.5
+                    this.moving_speed += throttling_speed
                 } else if (game.keyboard.down('right')) {
                     this.toggleISO(false)
-                    this.moving_speed -= 1.5
+                    this.moving_speed -= this.moving_speed <= -60 ? 0 : 1.5
                 } else if (game.keyboard.down('SPACE')) {
                     if (this.moving_speed < 0) {
                         this.moving_speed += this.moving_speed === 0 ? 0 : 1.5
