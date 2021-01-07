@@ -13,7 +13,7 @@ gulp.task('buildIndex', function (done) {
 })
 
 gulp.task('copyAssets', function (done) {
-    gulp.src('game/media/**/*.{png,json,atlas,ogg,mp4,jpg,manifest}').pipe(gulp.dest('public/media'))
+    gulp.src('game/media/**/*.{png,json,atlas,ogg,m4a,mp4,jpg,manifest}').pipe(gulp.dest('public/media'))
     done()
 })
 
