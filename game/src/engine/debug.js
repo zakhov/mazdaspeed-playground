@@ -455,13 +455,21 @@ game.createClass('Debug', {
         }
         
         context.globalCompositeOperation = 'source-over';
-        context.setTransform(wt.a, wt.b, wt.c, wt.d, x, y);
+        if (typeof context.setTransform === 'function') {
+            context.setTransform(wt.a, wt.b, wt.c, wt.d, x, y);
+        }
         context.globalAlpha = game.Debug.spriteAlpha;
         context.lineWidth = game.Debug.spriteLineWidth;
         context.strokeStyle = game.Debug.spriteColor;
-        context.beginPath();
-        context.rect(tx, ty, width, height);
-        context.stroke();
+        if (typeof context.beginPath === 'function') {
+            context.beginPath();
+        }
+        if (typeof context.rect === 'function') {
+            context.rect(tx, ty, width, height);
+        }
+        if (typeof context.stroke === 'function') {
+            context.stroke();
+        }
     },
 
     /**

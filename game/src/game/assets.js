@@ -1,6 +1,7 @@
 game.module('game.assets').body(function () {
     // Car
     game.addAsset('assets/mazdaspeed.json')
+    game.addAsset('assets/gauge.json')
 
     // Environment
     game.addAsset('assets/sky.jpg')

@@ -1,0 +1,19 @@
+{
+    "frames": { 
+        "odometer-needle.png": {
+            "x": 501,
+            "y": 2,
+            "w": 276,
+            "h": 97
+        }, 
+        "odometer.png": {
+            "x": 2,
+            "y": 2,
+            "w": 497,
+            "h": 496
+        }
+    },
+    "meta": {
+        "image": "gauge.png"
+    }
+}

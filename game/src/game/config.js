@@ -9,10 +9,20 @@ game.config = {
         rotateScreen: false,
     },
     debug: {
-        enabled: true,
+        enabled: false,
         showBodies: false,
         showBounds: false,
         showSprites: false,
         showHitAreas: false,
+    },
+    pixi: {
+        antialias: false,
+        forceFXAA: false,
+        autoResize: false,
+        transparent: false,
+        backgroundColor: 0x000000,
+        clearBeforeRender: true,
+        preserveDrawingBuffer: false,
+        roundPixels: false,
     },
 }
