@@ -21,6 +21,7 @@ game.module('game.main')
                 // this.vehicle_med_rpm.loop = true
                 // this.vehicle_high_rpm = new game.Sound('audio/car_rpm--high-loop.m4a')
                 // this.vehicle_high_rpm.loop = true
+                // this.vehicle_high_rpm.play()
                 this.sky_bg = new game.TilingSprite('assets/sky.jpg', game.width, game.height)
                 this.sky_bg.position.set(0, -200)
                 this.sky_bg.addTo(this.world)
@@ -99,12 +100,26 @@ game.module('game.main')
                 this.mps_ftyre.addTo(this.mazdaspeed)
                 this.mps_rtyre.addTo(this.mazdaspeed)
 
+                // this.reflection_filter = new game.filters.ReflectionFilter()
+                this.godray_filter = new game.filters.GodrayFilter()
+                this.godray_filter.angle = 45
+                this.godray_filter.parallel = false
+                this.godray_filter.alpha = 0.85
+
+                // this.reflection_filter.mirror = true
+                // this.reflection_filter.boundary = 0.8
+                // this.reflection_filter.alpha = [0.5, 0.5]
+                // this.reflection_filter.time = 0
+                // this.reflection_filter.amplitude = [0, 20]
+                // this.reflection_filter.waveLength = [30, 10]
+
                 this.mazdaspeed.filters = [this.mps_blur]
 
                 this.odometer.addTo(this.ui_gauge)
                 this.odometer_needle.addTo(this.ui_gauge)
 
                 this.world.addTo(this.stage)
+                this.sky_bg.filters = [this.godray_filter]
                 this.mazdaspeed.addTo(this.stage)
                 this.ui_gauge.addTo(this.stage)
             },
@@ -142,11 +157,12 @@ game.module('game.main')
                 var self = this
                 var pedal_pressed_interval = 0
                 var throttling_speed = this.moving_speed >= this.max_speed ? 0 : 1.5
+
                 this.moving_speed += throttling_speed
                 this.odometer_needle.rotation += 4 * game.delta
                 this.pedal_timeout = setInterval(function () {
                     pedal_pressed_interval += 1
-                    if (self.odometer_needle.rotation < 3.3) {
+                    if (self.odometer_needle.rotation < 4.1) {
                         self.odometer_needle.rotation += 4 * game.delta
                     }
                     throttling_speed = self.moving_speed >= self.max_speed ? 0 : 1.5
